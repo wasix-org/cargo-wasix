@@ -33,10 +33,10 @@ fn update_check(config: &Config) -> Result<()> {
             eprintln!("An update to version {} is available!", version);
             eprintln!("To upgrade from {} run:", env!("CARGO_PKG_VERSION"));
             eprintln!("");
-            eprintln!("    cargo install cargo-wasi -f");
+            eprintln!("    cargo install cargo-wasix -f");
             eprintln!("");
         }
-        None => eprintln!("cargo-wasi v{} is up-to-date", env!("CARGO_PKG_VERSION")),
+        None => eprintln!("cargo-wasix v{} is up-to-date", env!("CARGO_PKG_VERSION")),
     }
     Ok(())
 }
@@ -51,7 +51,7 @@ fn update_available() -> Result<Option<Version>> {
         num: String,
     }
 
-    let url = "https://crates.io/api/v1/crates/cargo-wasi";
+    let url = "https://crates.io/api/v1/crates/cargo-wasix";
     let response = crate::utils::get(url)?;
     let json = response
         .json::<Info>()
@@ -145,7 +145,7 @@ impl UpdateCheck<'_> {
     pub fn print(&self) {
         if let Ok(version) = self.rx.try_recv() {
             self.config.info(&format!(
-                "an update to `cargo-wasi v{}` is available, run `cargo install -f cargo-wasi` to acquire",
+                "an update to `cargo-wasix v{}` is available, run `cargo install -f cargo-wasix` to acquire",
                 version,
             ));
         }

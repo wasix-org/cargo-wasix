@@ -14,11 +14,11 @@ fn main() {
     // it. As a result we just always try deleting it and if it fails
     // we only consider that fatal on Unix.
     let try_self_delete =
-        cfg!(windows) || std::env::var_os("__CARGO_WASI_SELF_DELETE_FOR_SURE").is_some();
+        cfg!(windows) || std::env::var_os("__CARGO_WASIX_SELF_DELETE_FOR_SURE").is_some();
     if try_self_delete {
-        // We'll be handling this, so recursive invocations of `cargo-wasi`
+        // We'll be handling this, so recursive invocations of `cargo-wasix`
         // shouldn't try to handle this.
-        std::env::remove_var("__CARGO_WASI_SELF_DELETE_FOR_SURE");
+        std::env::remove_var("__CARGO_WASIX_SELF_DELETE_FOR_SURE");
         let me = match std::env::current_exe() {
             Ok(path) => path,
             Err(e) => {
@@ -39,5 +39,5 @@ fn main() {
         }
     }
 
-    cargo_wasi::main();
+    cargo_wasix::main();
 }

@@ -1,6 +1,6 @@
 # Running `wasm-opt`
 
-By default `cargo wasi` will run `wasm-opt` over optimized WebAssembly
+By default `cargo wasix` will run `wasm-opt` over optimized WebAssembly
 binaries. The `wasm-opt` program is a tool in the [binaryen
 toolkit](https://github.com/webassembly/binaryen) which is a wasm-to-wasm
 transformation that optimizes the input wasm module. Often `wasm-opt` can get
@@ -11,7 +11,7 @@ run though and it's important to keep those in mind!
 
 ## Which `wasm-opt` executed?
 
-Every release of `cargo wasi` is hardcoded to download a precompiled version of
+Every release of `cargo wasix` is hardcoded to download a precompiled version of
 `wasm-opt`. This binary will be lazily downloaded and then executed. You can
 also request that a specific `wasm-opt` binary is used via the `WASM_OPT`
 environment variable.

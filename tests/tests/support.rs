@@ -99,26 +99,26 @@ impl Project {
 
     pub fn debug_wasm(&self, name: &str) -> PathBuf {
         self.build_dir()
-            .join("wasm32-wasi")
+            .join("wasm32-wasix")
             .join("debug")
             .join(format!("{}.wasm", name))
     }
 
     pub fn release_wasm(&self, name: &str) -> PathBuf {
         self.build_dir()
-            .join("wasm32-wasi")
+            .join("wasm32-wasix")
             .join("release")
             .join(format!("{}.wasm", name))
     }
 
-    pub fn cargo_wasi(&self, cmd: &str) -> Command {
-        let mut process = super::cargo_wasi(cmd);
+    pub fn cargo_wasix(&self, cmd: &str) -> Command {
+        let mut process = super::cargo_wasix(cmd);
         process
             .current_dir(&self.root)
             .env("CARGO_HOME", self.root.join("cargo-home"));
 
         if let Some(runtime_override) = &self.runtime_override {
-            process.env("CARGO_TARGET_WASM32_WASI_RUNNER", runtime_override);
+            process.env("CARGO_TARGET_WASM32_WASIX_RUNNER", runtime_override);
         }
 
         return process;

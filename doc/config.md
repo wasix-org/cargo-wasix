@@ -1,8 +1,8 @@
 # Configuration
 
-The `cargo wasi` subcomand [does not have any CLI flags of its
+The `cargo wasix` subcomand [does not have any CLI flags of its
 own](cli-usage.md) but it's still not a one-size-fits-all command, so
-configuration needs to go somewhere! The `cargo wasi` command supports
+configuration needs to go somewhere! The `cargo wasix` command supports
 [TOML](https://github.com/toml-lang/toml)-based configuration stored in your
 [workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html)
 `Cargo.toml` in the `[package.metadata]` section:
@@ -12,7 +12,7 @@ configuration needs to go somewhere! The `cargo wasi` command supports
 # ...
 ```
 
-The keys supported by `cargo wasi` are:
+The keys supported by `cargo wasix` are:
 
 ```toml
 [package.metadata]
@@ -35,7 +35,7 @@ If this option is set to `false`, then `wasm-opt` will never be executed.
 
 If this option is set to `true`, this does not mean `wasm-opt` will
 unconditionally run for all builds. A value of `true` means that `wasm-opt`
-*may* run, depending on the internal heuristics of `cargo wasi`. For more
+*may* run, depending on the internal heuristics of `cargo wasix`. For more
 information about these heuristics and caveats, see [the documentation about
 running `wasm-opt`](wasm-opt.md).
 
@@ -53,8 +53,8 @@ indicates whether the `name` section should be present or not. This option
 defaults to `true`.
 
 If this option is set to `false` then it only takes effect when a build is
-produced without debuginfo. For example a `cargo wasi build` binary which has
-debuginfo would still have the `name` section present. A `cargo wasi build
+produced without debuginfo. For example a `cargo wasix build` binary which has
+debuginfo would still have the `name` section present. A `cargo wasix build
 --release` binary, however, would not have debuginfo and would also have the
 `name` section removed.
 
@@ -71,7 +71,7 @@ indicates whether the `producers` section should be present or not. This option
 defaults to `true`.
 
 If this option is set to `false` then it only takes effect when a build is
-produced without debuginfo. For example a `cargo wasi build` binary which has
-debuginfo would still have the `producers` section present. A `cargo wasi build
+produced without debuginfo. For example a `cargo wasix build` binary which has
+debuginfo would still have the `producers` section present. A `cargo wasix build
 --release` binary, however, would not have debuginfo and would also have the
 `producers` section removed.

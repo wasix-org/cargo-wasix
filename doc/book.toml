@@ -1,5 +1,5 @@
 [book]
-authors = ["The cargo-wasi Authors"]
+authors = ["The cargo-wasix Authors"]
 multilingual = false
 src = "."
-title = "The cargo-wasi Subcommand"
+title = "The cargo-wasix Subcommand"

@@ -1,8 +1,8 @@
-# Updating `cargo wasi`
+# Updating `cargo wasix`
 
-If you already have `cargo-wasi` installed and you'd like to update your
+If you already have `cargo-wasix` installed and you'd like to update your
 installation, you can execute:
 
 ```
-$ cargo install cargo-wasi --force
+$ cargo install cargo-wasix --force
 ```

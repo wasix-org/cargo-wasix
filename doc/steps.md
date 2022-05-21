@@ -1,42 +1,34 @@
-# Steps run by `cargo wasi`
+# Steps run by `cargo wasix`
 
-The `cargo wasi` subcommand is intended to be a *convenience* when developing
-Rust code for WASI, but is not required. It is a thin wrapper around the general
+The `cargo wasix` subcommand is intended to be a *convenience* when developing
+Rust code for WASIX, but is not required. It is a thin wrapper around the general
 "toolchain" of building WebAssembly code. Building WebAssembly code can be
 relatively involved and have a nontrivial number of moving parts, so having a
-convenience like `cargo wasi` becomes quite nice quite quickly, but it's
-important to also understand what `cargo wasi` is doing under the hood!
+convenience like `cargo wasix` becomes quite nice quite quickly, but it's
+important to also understand what `cargo wasix` is doing under the hood!
 
-This section will explain the various steps that `cargo wasi` internally takes
+This section will explain the various steps that `cargo wasix` internally takes
 care of for you. Be sure to check out the [reference
 documentation](reference.md) for an exhaustive list of ways to run and configure
-`cargo wasi`.
+`cargo wasix`.
 
-## Managing the `wasm32-wasi` target
+## Managing the `wasm32-wasix` target
 
-The Rust installer does not install the `wasm32-wasi` Rust standard library by
-default, but to compile any code for `wasm32-wasi` you'll need to be sure to
-have this target installed for your Rust toolchain. The `cargo wasi` subcommand
+The Rust installer does not install the `wasm32-wasix` Rust standard library by
+default, but to compile any code for `wasm32-wasix` you'll need to be sure to
+have this target installed for your Rust toolchain. The `cargo wasix` subcommand
 will automatically execute, if necessary:
 
 ```
-rustup target add wasm32-wasi
+rustup target add wasm32-wasix
 ```
 
 For systems not using `rustup` it will generate an error indicating whether or
 not the `wasm32-wasi` target is installed.
 
-## Ensuring a `wasmtime` runtime is installed
+## Automatically configure Cargo for `wasm32-wasix`
 
-As we saw previously when [running "Hello, world!"](hello-world.md) a
-`wasmtime` executable is required to execute WASI code locally. The `cargo wasi`
-subcommand will verify that it is installed and provide an understandable error
-message if it isn't, also recommending how to [install
-`wasmtime`](https://wasmtime.dev).
-
-## Automatically configure Cargo for `wasm32-wasi`
-
-Whenever `cargo wasi` is used it will automatically pass `--target wasm32-wasi`
+Whenever `cargo wasix` is used it will automatically pass `--target wasm32-wasix`
 to all Cargo subcommands that are invoked. This avoids you having to type
 this all out on each command.
 
@@ -63,29 +55,29 @@ proposal](https://github.com/webassembly/interface-types) is a developing
 standard for enhancing the set of types that a WebAssembly module can work with
 at its boundaries (as opposed to just integers and floats). This developing
 standard is targeted at use cases primarily outside of a browser (but also in
-one!) which is a perfect fit for WASI.
+one!) which is a perfect fit for WASIX.
 
 Rust's support for WebAssembly Interface Types comes through the
 [`wasm-bindgen` project](https://github.com/rustwasm/wasm-bindgen). When
 using `wasm-bindgen` as a crate, though, it requires also executing the
 matching CLI `wasm-bindgen` tool on the final WebAssembly binary. The
-`cargo wasi` subcommand will automatically find and install the matching binary
-to run on your WASI WebAssembly file. Using `cargo wasi` will also
+`cargo wasix` subcommand will automatically find and install the matching binary
+to run on your WASIX WebAssembly file. Using `cargo wasix` will also
 automatically configure `wasm-bindgen` to enable interface types support.
 
 ## Deleting DWARF debuginfo in release mode
 
 The standard Rust toolchain, following the convention of all platforms, ships
-an optimized standard library for the `wasm32-wasi` target that contains DWARF
+an optimized standard library for the `wasm32-wasix` target that contains DWARF
 debug information. This is typically what you want in debug builds to have
 a better debugging experience for the standard library, but release builds of
 WebAssembly are often focused on size and disable debug information by default.
 Following standard practice for all targets the Rust toolchain will by default
 include the standard library's DWARF debug information in the final `*.wasm`
-file, but `cargo wasi` will strip it out.
+file, but `cargo wasix` will strip it out.
 
 Note that this strip only happens if your build disables debuginfo in a release
-executable. If you enable debuginfo in the release executable, then `cargo wasi`
+executable. If you enable debuginfo in the release executable, then `cargo wasix`
 will not strip out the dwarf debug information.
 
 ## Demangling Rust symbols in the `name` section
@@ -96,7 +88,7 @@ is present in debug and release builds of WebAssembly binaries, but Rust
 symbols, like all other platforms, are mangled! This means that instead of
 `main` you'll see `_ZN4main20h...`, very long symbol names.
 
-The `cargo wasi` toolchain will ensure that all Rust symbol names in the `name`
+The `cargo wasix` toolchain will ensure that all Rust symbol names in the `name`
 section are demangled into a more human-readable form, improving the debugging
 experience when using native tooling.
 
@@ -111,7 +103,7 @@ is typically used to collect metadata about tools used to produce a WebAssembly
 binary.
 
 These two sections are emitted by default into all `*.wasm` binaries (including
-release builds). Using `cargo wasi`, though, you can ensure they're
+release builds). Using `cargo wasix`, though, you can ensure they're
 deleted from release builds in your `Cargo.toml`:
 
 ```toml

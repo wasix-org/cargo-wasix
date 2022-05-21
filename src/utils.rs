@@ -172,7 +172,7 @@ pub fn get(url: &str) -> Result<Response> {
         .get(url)
         .header(
             USER_AGENT,
-            format!("cargo-wasi/v{}", env!("CARGO_PKG_VERSION")),
+            format!("cargo-wasix/v{}", env!("CARGO_PKG_VERSION")),
         )
         .send()
         .context(format!("failed to fetch {}", url))?;

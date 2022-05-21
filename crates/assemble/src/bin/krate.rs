@@ -11,7 +11,7 @@ fn main() -> anyhow::Result<()> {
 
     let toml = fs::read_to_string("Cargo.toml").context("failed to read `Cargo.toml`")?;
     let toml: toml::Value = toml::from_str(&toml)?;
-    let name = format!("cargo-wasi-exe-{}", target);
+    let name = format!("cargo-wasix-exe-{}", target);
 
     fs::write(
         "tmp/Cargo.toml",
@@ -24,7 +24,7 @@ authors = {authors}
 license = {license}
 repository = {repository}
 description = """
-Precompiled binary of `cargo-wasi` for {target}
+Precompiled binary of `cargo-wasix` for {target}
 """
 
 [workspace]

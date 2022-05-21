@@ -24,7 +24,7 @@ fn main() -> anyhow::Result<()> {
     fs::create_dir_all(tmp.join("shim")).context("failed to create `tmp` dir")?;
 
     println!("Copying the shim into `tmp`...");
-    cp_r("crates/cargo-wasi-shim".as_ref(), &tmp.join("shim"))?;
+    cp_r("crates/cargo-wasix-shim".as_ref(), &tmp.join("shim"))?;
 
     let version = toml::from_str::<toml::Value>(&fs::read_to_string("Cargo.toml").unwrap())
         .unwrap()["package"]["version"]
@@ -36,7 +36,7 @@ fn main() -> anyhow::Result<()> {
 
     if krate_files_here {
         for (target, _) in TARGETS {
-            let dir = PathBuf::from(format!("cargo-wasi-{}", target));
+            let dir = PathBuf::from(format!("cargo-wasix-{}", target));
             let krate = dir
                 .read_dir()
                 .context(format!("failed to read {:?}", dir))?
@@ -62,7 +62,7 @@ fn main() -> anyhow::Result<()> {
     fs::remove_file(tmp.join("shim/build.rs")).context("failed to remove build script")?;
     let mut manifest = fs::read_to_string(&manifest_path)
         .context("failed to read manifest")?
-        .replace("cargo-wasi-shim", "cargo-wasi")
+        .replace("cargo-wasix-shim", "cargo-wasix")
         .replace("0.0.0", &version);
     manifest.truncate(manifest.find("[features]").unwrap());
     manifest.push_str("\n");
@@ -70,7 +70,7 @@ fn main() -> anyhow::Result<()> {
         manifest.push_str("[target.'cfg(");
         manifest.push_str(cfg);
         manifest.push_str(")'.dependencies]\n");
-        manifest.push_str(&format!("cargo-wasi-exe-{} = \"={}\"\n", target, version));
+        manifest.push_str(&format!("cargo-wasix-exe-{} = \"={}\"\n", target, version));
     }
     manifest.push_str("[target.'cfg(not(any(");
     for (_, cfg) in TARGETS {
@@ -78,15 +78,15 @@ fn main() -> anyhow::Result<()> {
         manifest.push_str(",");
     }
     manifest.push_str(")))'.dependencies]\n");
-    manifest.push_str(&format!("cargo-wasi-src = \"={}\"\n", version));
+    manifest.push_str(&format!("cargo-wasix-src = \"={}\"\n", version));
     manifest.push_str("[patch.crates-io]\n");
     for (target, _) in TARGETS {
         manifest.push_str(&format!(
-            "cargo-wasi-exe-{} = {{ path = '../cargo-wasi-exe-{0}-{}' }}\n",
+            "cargo-wasix-exe-{} = {{ path = '../cargo-wasix-exe-{0}-{}' }}\n",
             target, version
         ));
     }
-    manifest.push_str("cargo-wasi-src = { path = '../..' }\n");
+    manifest.push_str("cargo-wasix-src = { path = '../..' }\n");
     println!("========= NEW MANIFEST ===============");
     println!("\t{}", manifest.replace("\n", "\n\t"));
     fs::write(&manifest_path, manifest).context("failed to write manifest")?;
@@ -94,7 +94,7 @@ fn main() -> anyhow::Result<()> {
     let top_manifest = fs::read_to_string("Cargo.toml").context("failed to read manifest")?;
     fs::write(
         "Cargo.toml",
-        top_manifest.replacen("name = \"cargo-wasi\"", "name = \"cargo-wasi-src\"", 1),
+        top_manifest.replacen("name = \"cargo-wasix\"", "name = \"cargo-wasix-src\"", 1),
     )?;
 
     if krate_files_here {
@@ -113,9 +113,9 @@ fn main() -> anyhow::Result<()> {
 
     let do_publish = std::env::var("NO_DRY_RUN").is_ok();
 
-    // Rename the main package to `cargo-wasi-src` and then publish it.
+    // Rename the main package to `cargo-wasix-src` and then publish it.
     if do_publish {
-        println!("Publishing the `cargo-wasi-src` package");
+        println!("Publishing the `cargo-wasix-src` package");
         let status = Command::new("cargo")
             .arg("publish")
             .arg("--no-verify")

@@ -6,15 +6,15 @@ use std::process::Command;
 
 mod support;
 
-fn cargo_wasi(args: &str) -> Command {
+fn cargo_wasix(args: &str) -> Command {
     let mut me = std::env::current_exe().unwrap();
     me.pop();
     me.pop();
-    me.push("cargo-wasi");
+    me.push("cargo-wasix");
     me.set_extension(std::env::consts::EXE_EXTENSION);
 
     let mut cmd = Command::new(&me);
-    cmd.arg("wasi");
+    cmd.arg("wasix");
     for arg in args.split_whitespace() {
         cmd.arg(arg);
     }
@@ -29,20 +29,20 @@ fn cargo_wasi(args: &str) -> Command {
 
 #[test]
 fn help() {
-    cargo_wasi("help").assert().success();
+    cargo_wasix("help").assert().success();
 }
 
 #[test]
 fn version() {
-    cargo_wasi("-V")
+    cargo_wasix("-V")
         .assert()
         .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")))
         .success();
-    cargo_wasi("--version")
+    cargo_wasix("--version")
         .assert()
         .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")))
         .success();
-    cargo_wasi("version")
+    cargo_wasix("version")
         .assert()
         .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")))
         .success();
@@ -54,7 +54,7 @@ fn contains_debuginfo() -> Result<()> {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("build").assert().success();
+    p.cargo_wasix("build").assert().success();
     let bytes = std::fs::read(p.debug_wasm("foo")).context("failed to read wasm")?;
     let sections = custom_sections(&bytes)?;
     assert!(sections.iter().any(|s| s.starts_with(".debug_info")));
@@ -68,7 +68,7 @@ fn strip_debuginfo() -> Result<()> {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("build --release").assert().success();
+    p.cargo_wasix("build --release").assert().success();
     let bytes = std::fs::read(p.release_wasm("foo")).context("failed to read wasm")?;
     let sections = custom_sections(&bytes)?;
     assert!(!sections.iter().any(|s| s.starts_with(".debug_info")));
@@ -82,7 +82,7 @@ fn check_works() {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("check").assert().success();
+    p.cargo_wasix("check").assert().success();
 }
 
 #[test]
@@ -91,7 +91,7 @@ fn fix_works() {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("fix --allow-no-vcs").assert().success();
+    p.cargo_wasix("fix --allow-no-vcs").assert().success();
 }
 
 #[test]
@@ -100,11 +100,11 @@ fn rust_names_demangled() -> Result<()> {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("build").assert().success();
+    p.cargo_wasix("build").assert().success();
     let bytes = std::fs::read(p.debug_wasm("foo")).context("failed to read wasm")?;
     assert_demangled(&bytes)?;
 
-    p.cargo_wasi("build --release").assert().success();
+    p.cargo_wasix("build --release").assert().success();
     let bytes = std::fs::read(p.release_wasm("foo")).context("failed to read wasm")?;
     assert_demangled(&bytes)?;
     Ok(())
@@ -146,11 +146,11 @@ fn assert_demangled(wasm: &[u8]) -> Result<()> {
 
 #[test]
 fn check_output() -> Result<()> {
-    // download the wasi target and get that out of the way
+    // download the wasix target and get that out of the way
     support::project()
         .file("src/main.rs", "fn main() {}")
         .build()
-        .cargo_wasi("check")
+        .cargo_wasix("check")
         .assert()
         .success();
 
@@ -158,7 +158,7 @@ fn check_output() -> Result<()> {
     support::project()
         .file("src/main.rs", "fn main() {}")
         .build()
-        .cargo_wasi("build")
+        .cargo_wasix("build")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -174,7 +174,7 @@ $",
         .build();
 
     // Default verbose output
-    p.cargo_wasi("build -v")
+    p.cargo_wasix("build -v")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -189,7 +189,7 @@ $",
         .success();
 
     // Incremental verbose output
-    p.cargo_wasi("build -v")
+    p.cargo_wasix("build -v")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -202,7 +202,7 @@ $",
         .success();
 
     // Incremental non-verbose output
-    p.cargo_wasi("build")
+    p.cargo_wasix("build")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -217,11 +217,11 @@ $",
 
 #[test]
 fn check_output_release() -> Result<()> {
-    // download the wasi target and get that out of the way
+    // download the wasix target and get that out of the way
     support::project()
         .file("src/main.rs", "fn main() {}")
         .build()
-        .cargo_wasi("build --release")
+        .cargo_wasix("build --release")
         .assert()
         .success();
 
@@ -229,7 +229,7 @@ fn check_output_release() -> Result<()> {
     support::project()
         .file("src/main.rs", "fn main() {}")
         .build()
-        .cargo_wasi("build --release")
+        .cargo_wasix("build --release")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -246,7 +246,7 @@ $",
         .build();
 
     // Default verbose output
-    p.cargo_wasi("build -v --release")
+    p.cargo_wasix("build -v --release")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -263,7 +263,7 @@ $",
         .success();
 
     // Incremental verbose output
-    p.cargo_wasi("build -v --release")
+    p.cargo_wasix("build -v --release")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -276,7 +276,7 @@ $",
         .success();
 
     // Incremental non-verbose output
-    p.cargo_wasi("build --release")
+    p.cargo_wasix("build --release")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -316,7 +316,7 @@ fn wasm_bindgen() -> Result<()> {
         .file("wasm-bindgen/src/lib.rs", "")
         .build();
 
-    p.cargo_wasi("build -v")
+    p.cargo_wasix("build -v")
         .env("WASM_BINDGEN", "my-wasm-bindgen")
         .assert()
         .stdout("")
@@ -339,7 +339,7 @@ $",
         )?)
         .code(1);
 
-    p.cargo_wasi("build")
+    p.cargo_wasix("build")
         .env("WASM_BINDGEN", "my-wasm-bindgen")
         .assert()
         .stdout("")
@@ -357,7 +357,7 @@ $",
         )?)
         .code(1);
 
-    p.cargo_wasi("build --release")
+    p.cargo_wasix("build --release")
         .env("WASM_BINDGEN", "my-wasm-bindgen")
         .assert()
         .stdout("")
@@ -385,7 +385,7 @@ fn run() -> Result<()> {
     support::project()
         .file("src/main.rs", "fn main() {}")
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -406,7 +406,7 @@ $",
             "#,
         )
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stdout("hello\n")
         .stderr(is_match(
@@ -425,9 +425,9 @@ $",
 fn run_override_runtime() -> Result<()> {
     support::project()
         .file("src/main.rs", "fn main() {}")
-        .override_runtime("wasmtime")
+        .override_runtime("wasmer")
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stdout("")
         .stderr(is_match(
@@ -447,11 +447,11 @@ $",
             "command-and-path-that-is-unlikely-to-exist-eac9cb6c-fa25-4487-b07f-38116cc6dade",
         )
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stdout("")
         // error should include this environment variable
-        .stderr(is_match("CARGO_TARGET_WASM32_WASI_RUNNER")?)
+        .stderr(is_match("CARGO_TARGET_WASM32_WASIX_RUNNER")?)
         .failure();
 
     // override with a working runtime works
@@ -462,9 +462,9 @@ $",
                 fn main() { println!("hello") }
             "#,
         )
-        .override_runtime("wasmtime")
+        .override_runtime("wasmer")
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stdout("hello\n")
         .stderr(is_match(
@@ -477,7 +477,7 @@ $",
         )?)
         .success();
 
-    let wasmtime_path = which::which("wasmtime")
+    let wasmer_path = which::which("wasmer")
         .unwrap()
         .to_string_lossy()
         .to_string();
@@ -489,9 +489,9 @@ $",
                 fn main() { println!("hello") }
             "#,
         )
-        .override_runtime(&wasmtime_path)
+        .override_runtime(&wasmer_path)
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stdout("hello\n")
         .stderr(is_match(
@@ -504,7 +504,7 @@ $",
         )?)
         .success();
 
-    // override is not accidentally using wasmtime
+    // override is not accidentally using wasmer
     // use the `echo` program to test this
     support::project()
         .file(
@@ -515,9 +515,9 @@ $",
         )
         .override_runtime("echo")
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
-        .stdout(is_match("target.wasm32-wasi.debug.foo.wasm")?)
+        .stdout(is_match("target.wasm32-wasix.debug.foo.wasm")?)
         .stderr(is_match(
             "^\
 .*Compiling foo v1.0.0 .*
@@ -543,7 +543,7 @@ fn run_forward_args() -> Result<()> {
             "#,
         )
         .build()
-        .cargo_wasi("run a -b c")
+        .cargo_wasix("run a -b c")
         .assert()
         .stdout("[\"a\", \"-b\", \"c\"]\n")
         .success();
@@ -561,7 +561,7 @@ fn test() -> Result<()> {
             "#,
         )
         .build()
-        .cargo_wasi("test")
+        .cargo_wasix("test")
         .assert()
         .stdout(
             "
@@ -589,7 +589,7 @@ fn run_nothing() -> Result<()> {
     support::project()
         .file("src/lib.rs", "")
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .code(101);
     Ok(())
@@ -601,7 +601,7 @@ fn run_many() -> Result<()> {
         .file("src/bin/foo.rs", "")
         .file("src/bin/bar.rs", "")
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .code(101);
     Ok(())
@@ -613,7 +613,7 @@ fn run_one() -> Result<()> {
         .file("src/bin/foo.rs", "fn main() {}")
         .file("src/bin/bar.rs", "")
         .build()
-        .cargo_wasi("run --bin foo")
+        .cargo_wasix("run --bin foo")
         .assert()
         .code(0);
     Ok(())
@@ -630,7 +630,7 @@ fn test_flags() -> Result<()> {
             "#,
         )
         .build()
-        .cargo_wasi("test -- --nocapture")
+        .cargo_wasix("test -- --nocapture")
         .assert()
         .success();
     Ok(())
@@ -648,7 +648,7 @@ fn run_panic() -> Result<()> {
             "#,
         )
         .build()
-        .cargo_wasi("run")
+        .cargo_wasix("run")
         .assert()
         .stderr(is_match(
             "^\
@@ -682,12 +682,12 @@ fn producers_section() -> Result<()> {
         .build();
 
     // Should be included in debug build
-    p.cargo_wasi("build").assert().success();
+    p.cargo_wasix("build").assert().success();
     let bytes = std::fs::read(p.debug_wasm("foo")).context("failed to read wasm")?;
     assert!(custom_sections(&bytes)?.contains(&"producers"));
 
     // ... and shouldnt be included in release build w/o debuginfo
-    p.cargo_wasi("build --release").assert().success();
+    p.cargo_wasix("build --release").assert().success();
     let bytes = std::fs::read(p.release_wasm("foo")).context("failed to read wasm")?;
     assert!(!custom_sections(&bytes)?.contains(&"producers"));
     Ok(())
@@ -711,12 +711,12 @@ fn name_section() -> Result<()> {
         .build();
 
     // Should be included in debug build
-    p.cargo_wasi("build").assert().success();
+    p.cargo_wasix("build").assert().success();
     let bytes = std::fs::read(p.debug_wasm("foo")).context("failed to read wasm")?;
     assert!(custom_sections(&bytes)?.contains(&"name"));
 
     // ... and shouldnt be included in release build w/o debuginfo
-    p.cargo_wasi("build --release").assert().success();
+    p.cargo_wasix("build --release").assert().success();
     let bytes = std::fs::read(p.release_wasm("foo")).context("failed to read wasm")?;
     assert!(!custom_sections(&bytes)?.contains(&"name"));
     Ok(())
@@ -750,7 +750,7 @@ fn release_skip_wasm_opt() -> Result<()> {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("build --release")
+    p.cargo_wasix("build --release")
         .assert()
         .stderr(is_match(
             "^\
@@ -779,7 +779,7 @@ fn skip_wasm_opt_if_debug() -> Result<()> {
         .file("src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("build --release")
+    p.cargo_wasix("build --release")
         .assert()
         .stderr(is_match(
             "^\
@@ -793,11 +793,11 @@ $",
 
 #[test]
 fn self_bad() {
-    cargo_wasi("self")
+    cargo_wasix("self")
         .assert()
         .stderr("error: `self` command must be followed by `clean` or `update-check`\n")
         .code(1);
-    cargo_wasi("self x")
+    cargo_wasix("self x")
         .assert()
         .stderr("error: unsupported `self` command: x\n")
         .code(1);
@@ -824,7 +824,7 @@ fn workspace_works() -> Result<()> {
         .file("a/src/main.rs", "fn main() {}")
         .build();
 
-    p.cargo_wasi("build")
+    p.cargo_wasix("build")
         .assert()
         .stderr(is_match(
             "^\
@@ -858,6 +858,6 @@ fn verbose_build_script_works() -> Result<()> {
         )
         .build();
 
-    p.cargo_wasi("build -vv").assert().success();
+    p.cargo_wasix("build -vv").assert().success();
     Ok(())
 }

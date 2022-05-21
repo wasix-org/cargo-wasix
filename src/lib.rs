@@ -15,7 +15,7 @@ mod utils;
 
 pub fn main() {
     // See comments in `rmain` around `*_RUNNER` for why this exists here.
-    if env::var("__CARGO_WASI_RUNNER_SHIM").is_ok() {
+    if env::var("__CARGO_WASIX_RUNNER_SHIM").is_ok() {
         let args = env::args().skip(1).collect();
         println!(
             "{}",
@@ -47,7 +47,7 @@ enum Subcommand {
 fn rmain(config: &mut Config) -> Result<()> {
     config.load_cache()?;
 
-    // skip the current executable and the `wasi` inserted by Cargo
+    // skip the current executable and the `wasix` inserted by Cargo
     let mut args = env::args_os().skip(2);
     let subcommand = args.next().and_then(|s| s.into_string().ok());
     let subcommand = match subcommand.as_ref().map(|s| s.as_str()) {
@@ -63,7 +63,7 @@ fn rmain(config: &mut Config) -> Result<()> {
                 Some(s) => format!(" ({})", s),
                 None => String::new(),
             };
-            println!("cargo-wasi {}{}", env!("CARGO_PKG_VERSION"), git_info);
+            println!("cargo-wasix {}{}", env!("CARGO_PKG_VERSION"), git_info);
             std::process::exit(0);
         }
         _ => print_help(),
@@ -81,7 +81,7 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // TODO: figure out when these flags are already passed to `cargo` and skip
     // passing them ourselves.
-    cargo.arg("--target").arg("wasm32-wasi");
+    cargo.arg("--target").arg("wasm32-wasix");
     cargo.arg("--message-format").arg("json-render-diagnostics");
     for arg in args {
         if let Some(arg) = arg.to_str() {
@@ -106,52 +106,47 @@ fn rmain(config: &mut Config) -> Result<()> {
     // execute everything at the end.
     //
     // Also note that we check here before we actually build that a runtime is
-    // present. We first check the CARGO_TARGET_WASM32_WASI_RUNNER environement
+    // present. We first check the CARGO_TARGET_WASM32_WASIX_RUNNER environement
     // variable for a user-supplied runtime (path or executable) and use the
-    // default, namely `wasmtime`, if it is not set.
-    let (wasi_runner, using_default) = env::var("CARGO_TARGET_WASM32_WASI_RUNNER")
+    // default, namely `wasmer`, if it is not set.
+    let (wasix_runner, using_default) = env::var("CARGO_TARGET_WASM32_WASIX_RUNNER")
         .map(|runner_override| (runner_override, false))
-        .unwrap_or_else(|_| ("wasmtime".to_string(), true));
+        .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
     match subcommand {
         Subcommand::Run | Subcommand::Bench | Subcommand::Test => {
             if !using_default {
                 // check if the override is either a valid path or command found on $PATH
-                if !(Path::new(&wasi_runner).exists() || which::which(&wasi_runner).is_ok()) {
+                if !(Path::new(&wasix_runner).exists() || which::which(&wasix_runner).is_ok()) {
                     bail!(
-                        "failed to find `{}` (specified by $CARGO_TARGET_WASM32_WASI_RUNNER) \
+                        "failed to find `{}` (specified by $CARGO_TARGET_WASM32_WASIX_RUNNER) \
                          on the filesytem or in $PATH, you'll want to fix the path or unset \
-                         the $CARGO_TARGET_WASM32_WASI_RUNNER environment variable before \
+                         the $CARGO_TARGET_WASM32_WASIX_RUNNER environment variable before \
                          running this command\n",
-                        &wasi_runner
+                        &wasix_runner
                     );
                 }
-            } else if which::which(&wasi_runner).is_err() {
+            } else if which::which(&wasix_runner).is_err() {
                 let mut msg = format!(
                     "failed to find `{}` in $PATH, you'll want to \
                      install `{}` before running this command\n",
-                    wasi_runner, wasi_runner
+                    wasix_runner, wasix_runner
                 );
                 // Because we know what runtime is being used here, we can print
                 // out installation information.
-                if cfg!(unix) {
-                    msg.push_str("you can also install through a shell:\n\n");
-                    msg.push_str("\tcurl https://wasmtime.dev/install.sh -sSf | bash\n");
-                } else {
-                    msg.push_str("you can also install through the installer:\n\n");
-                    msg.push_str("\thttps://github.com/CraneStation/wasmtime/releases/download/dev/wasmtime-dev-x86_64-windows.msi\n");
-                }
+                msg.push_str("you can also install through a shell:\n\n");
+                msg.push_str("\tcurl https://wasmer.io/install.sh -sSf | bash\n");
                 bail!("{}", msg);
             }
-            cargo.env("__CARGO_WASI_RUNNER_SHIM", "1");
-            cargo.env("CARGO_TARGET_WASM32_WASI_RUNNER", env::current_exe()?);
+            cargo.env("__CARGO_WASIX_RUNNER_SHIM", "1");
+            cargo.env("CARGO_TARGET_WASM32_WASIX_RUNNER", env::current_exe()?);
         }
 
         Subcommand::Build | Subcommand::Check | Subcommand::Fix => {}
     }
 
     let update_check = internal::UpdateCheck::new(config);
-    install_wasi_target(&config)?;
+    install_wasix_target(&config)?;
     let build = execute_cargo(&mut cargo, &config)?;
     for (wasm, profile, fresh) in build.wasms.iter() {
         // Cargo will always overwrite our `wasm` above with its own internal
@@ -160,44 +155,44 @@ fn rmain(config: &mut Config) -> Result<()> {
         // If `fresh` is *false*, then Cargo just built `wasm` and we need to
         // process it. If `fresh` is *true*, then we may have previously
         // processed it. If our previous processing was successful the output
-        // was placed at `*.wasi.wasm`, so we use that to overwrite the
+        // was placed at `*.wasix.wasm`, so we use that to overwrite the
         // `*.wasm` file. In the process we also create a `*.rustc.wasm` for
         // debugging.
         //
         // Note that we remove files before renaming and such to ensure that
         // we're not accidentally updating the wrong hard link and such.
         let temporary_rustc = wasm.with_extension("rustc.wasm");
-        let temporary_wasi = wasm.with_extension("wasi.wasm");
+        let temporary_wasix = wasm.with_extension("wasix.wasm");
 
         drop(fs::remove_file(&temporary_rustc));
         fs::rename(wasm, &temporary_rustc)?;
-        if !*fresh || !temporary_wasi.exists() {
+        if !*fresh || !temporary_wasix.exists() {
             // If we found `wasm-bindgen` as a dependency when building then
             // automatically execute the `wasm-bindgen` CLI, otherwise just process
             // using normal `walrus` commands.
             let result = match &build.wasm_bindgen {
                 Some(version) => run_wasm_bindgen(
-                    &temporary_wasi,
+                    &temporary_wasix,
                     &temporary_rustc,
                     profile,
                     version,
                     &build,
                     &config,
                 ),
-                None => process_wasm(&temporary_wasi, &temporary_rustc, profile, &build, &config),
+                None => process_wasm(&temporary_wasix, &temporary_rustc, profile, &build, &config),
             };
             result.with_context(|| {
                 format!("failed to process wasm at `{}`", temporary_rustc.display())
             })?;
         }
         drop(fs::remove_file(&wasm));
-        fs::hard_link(&temporary_wasi, &wasm)
-            .or_else(|_| fs::copy(&temporary_wasi, &wasm).map(|_| ()))?;
+        fs::hard_link(&temporary_wasix, &wasm)
+            .or_else(|_| fs::copy(&temporary_wasix, &wasm).map(|_| ()))?;
     }
 
     for run in build.runs.iter() {
         config.status("Running", &format!("`{}`", run.join(" ")));
-        Command::new(&wasi_runner)
+        Command::new(&wasix_runner)
             .arg("--")
             .args(run.iter())
             .run()
@@ -211,59 +206,59 @@ fn rmain(config: &mut Config) -> Result<()> {
 fn print_help() -> ! {
     println!(
         "\
-cargo-wasi
-Compile and run a Rust crate for the wasm32-wasi target
+cargo-wasix
+Compile and run a Rust crate for the wasm32-wasix target
 
 USAGE:
-    cargo wasi build [OPTIONS]
-    cargo wasi run [OPTIONS]
-    cargo wasi test [OPTIONS]
-    cargo wasi bench [OPTIONS]
-    cargo wasi check [OPTIONS]
-    cargo wasi fix [OPTIONS]
-    cargo wasi self clean
-    cargo wasi self update-check
+    cargo wasix build [OPTIONS]
+    cargo wasix run [OPTIONS]
+    cargo wasix test [OPTIONS]
+    cargo wasix bench [OPTIONS]
+    cargo wasix check [OPTIONS]
+    cargo wasix fix [OPTIONS]
+    cargo wasix self clean
+    cargo wasix self update-check
 
 All options accepted are the same as that of the corresponding `cargo`
-subcommands. You can run `cargo wasi build -h` for more information to learn
-about flags that can be passed to `cargo wasi build`, which mirrors the
+subcommands. You can run `cargo wasix build -h` for more information to learn
+about flags that can be passed to `cargo wasix build`, which mirrors the
 `cargo build` command.
 "
     );
     std::process::exit(0);
 }
 
-/// Installs the `wasm32-wasi` target into our global cache.
-fn install_wasi_target(config: &Config) -> Result<()> {
-    // We'll make a stamp file when we verify that wasm32-wasi is installed to
+/// Installs the `wasm32-wasix` target into our global cache.
+fn install_wasix_target(config: &Config) -> Result<()> {
+    // We'll make a stamp file when we verify that wasm32-wasix is installed to
     // accelerate future checks. If that file exists, we're good to go.
     //
     // Note that we account for `$RUSTUP_TOOLCHAIN` if it exists to ensure that
-    // if you're moving across toolchains we always make sure that wasi is
+    // if you're moving across toolchains we always make sure that wasix is
     // installed.
-    let stamp_name = "wasi-target-installed".to_string()
+    let stamp_name = "wasix-target-installed".to_string()
         + &env::var("RUSTUP_TOOLCHAIN").unwrap_or("".to_string());
     config.cache().stamp(stamp_name).ensure(|| {
         // Ok we need to actually check since this is perhaps the first time we've
         // ever checked. Let's ask rustc what its sysroot is and see if it has a
-        // wasm32-wasi folder.
+        // wasm32-wasix folder.
         let sysroot = Command::new("rustc")
             .arg("--print")
             .arg("sysroot")
             .capture_stdout()?;
         let sysroot = Path::new(sysroot.trim());
-        if sysroot.join("lib/rustlib/wasm32-wasi").exists() {
+        if sysroot.join("lib/rustlib/wasm32-wasix").exists() {
             return Ok(());
         }
 
         // ... and that doesn't exist, so we need to install it! If we're not a
         // rustup toolchain then someone else has to figure out how to install the
-        // wasi target, otherwise we delegate to rustup.
+        // wasix target, otherwise we delegate to rustup.
         if env::var_os("RUSTUP_TOOLCHAIN").is_none() {
             bail!(
-                "failed to find the `wasm32-wasi` target installed, and rustup \
+                "failed to find the `wasm32-wasix` target installed, and rustup \
                  is also not detected, you'll need to be sure to install the \
-                 `wasm32-wasi` target before using this command"
+                 `wasm32-wasix` target before using this command"
             );
         }
 
@@ -275,7 +270,7 @@ fn install_wasi_target(config: &Config) -> Result<()> {
         Command::new("rustup")
             .arg("target")
             .arg("add")
-            .arg("wasm32-wasi")
+            .arg("wasm32-wasix")
             .run()?;
         Ok(())
     })
@@ -710,7 +705,7 @@ fn install_wasm_opt(path: &Path, config: &Config) -> Result<()> {
 
 fn download(url: &str, name: &str, path: &Path, config: &Config) -> Result<()> {
     // Globally lock ourselves downloading things to coordinate with any other
-    // instances of `cargo-wasi` doing a download. This is a bit coarse, but it
+    // instances of `cargo-wasix` doing a download. This is a bit coarse, but it
     // gets the job done. Additionally if someone else does the download for us
     // then we can simply return.
     let _flock = utils::flock(&config.cache().root().join("downloading"));
