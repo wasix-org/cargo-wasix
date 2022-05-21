@@ -81,7 +81,7 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // TODO: figure out when these flags are already passed to `cargo` and skip
     // passing them ourselves.
-    cargo.arg("--target").arg("wasm32-wasix");
+    cargo.arg("--target").arg("wasm64-wasix");
     cargo.arg("--message-format").arg("json-render-diagnostics");
     for arg in args {
         if let Some(arg) = arg.to_str() {
@@ -207,7 +207,7 @@ fn print_help() -> ! {
     println!(
         "\
 cargo-wasix
-Compile and run a Rust crate for the wasm32-wasix target
+Compile and run a Rust crate for the wasm64-wasix target
 
 USAGE:
     cargo wasix build [OPTIONS]
@@ -228,9 +228,9 @@ about flags that can be passed to `cargo wasix build`, which mirrors the
     std::process::exit(0);
 }
 
-/// Installs the `wasm32-wasix` target into our global cache.
+/// Installs the `wasm64-wasix` target into our global cache.
 fn install_wasix_target(config: &Config) -> Result<()> {
-    // We'll make a stamp file when we verify that wasm32-wasix is installed to
+    // We'll make a stamp file when we verify that wasm64-wasix is installed to
     // accelerate future checks. If that file exists, we're good to go.
     //
     // Note that we account for `$RUSTUP_TOOLCHAIN` if it exists to ensure that
@@ -241,13 +241,13 @@ fn install_wasix_target(config: &Config) -> Result<()> {
     config.cache().stamp(stamp_name).ensure(|| {
         // Ok we need to actually check since this is perhaps the first time we've
         // ever checked. Let's ask rustc what its sysroot is and see if it has a
-        // wasm32-wasix folder.
+        // wasm64-wasix folder.
         let sysroot = Command::new("rustc")
             .arg("--print")
             .arg("sysroot")
             .capture_stdout()?;
         let sysroot = Path::new(sysroot.trim());
-        if sysroot.join("lib/rustlib/wasm32-wasix").exists() {
+        if sysroot.join("lib/rustlib/wasm64-wasix").exists() {
             return Ok(());
         }
 
@@ -256,9 +256,9 @@ fn install_wasix_target(config: &Config) -> Result<()> {
         // wasix target, otherwise we delegate to rustup.
         if env::var_os("RUSTUP_TOOLCHAIN").is_none() {
             bail!(
-                "failed to find the `wasm32-wasix` target installed, and rustup \
+                "failed to find the `wasm64-wasix` target installed, and rustup \
                  is also not detected, you'll need to be sure to install the \
-                 `wasm32-wasix` target before using this command"
+                 `wasm64-wasix` target before using this command"
             );
         }
 
@@ -270,7 +270,7 @@ fn install_wasix_target(config: &Config) -> Result<()> {
         Command::new("rustup")
             .arg("target")
             .arg("add")
-            .arg("wasm32-wasix")
+            .arg("wasm64-wasix")
             .run()?;
         Ok(())
     })

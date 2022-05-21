@@ -10,7 +10,7 @@ The supported subcommands for `cargo wasix` are:
 ## `cargo wasix build`
 
 This is the primary subcommand used to build WebAssembly code. This will build
-your crate for the `wasm32-wasix` target and run any postprocessing (like
+your crate for the `wasm64-wasix` target and run any postprocessing (like
 `wasm-bindgen` or `wasm-opt`) over any produced binary.
 
 ```
@@ -20,8 +20,8 @@ $ cargo wasix build --lib
 $ cargo wasix build --test foo
 ```
 
-Output `*.wasm` files will be located in `target/wasm32-wasix/debug` for debug
-builds or `target/wasm32-wasix/release` for release builds.
+Output `*.wasm` files will be located in `target/wasm64-wasix/debug` for debug
+builds or `target/wasm64-wasix/release` for release builds.
 
 ## `cargo wasix check`
 
@@ -76,7 +76,7 @@ testing](testing.md) since there are some gotchas today.
 
 ## `cargo wasix fix`
 
-Forwards everything to `cargo fix`, but again with the `--target wasm32-wasix`
+Forwards everything to `cargo fix`, but again with the `--target wasm64-wasix`
 option which ensures that the fixes are also applied to wasix-specific code (if
 any).
 
