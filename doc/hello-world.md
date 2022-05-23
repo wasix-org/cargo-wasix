@@ -28,18 +28,18 @@ Ok, now that we've got a runtime installed, let's retry executing our binary:
 
 ```
 $ cargo wasix run
-info: downloading component 'rust-std' for 'wasm64-wasix'
-info: installing component 'rust-std' for 'wasm64-wasix'
+info: downloading component 'rust-std' for 'wasm64-wasi'
+info: installing component 'rust-std' for 'wasm64-wasi'
    Compiling wasix-hello-world v0.1.0 (/code/wasix-hello-world)
     Finished dev [unoptimized + debuginfo] target(s) in 0.15s
-     Running `/.cargo/bin/cargo-wasix target/wasm64-wasix/debug/wasix-hello-world.wasm`
-     Running `target/wasm64-wasix/debug/wasix-hello-world.wasm`
+     Running `/.cargo/bin/cargo-wasix target/wasm64-wasi/debug/wasix-hello-world.wasm`
+     Running `target/wasm64-wasi/debug/wasix-hello-world.wasm`
 Hello, world!
 ```
 
 Success! The command first used
 [`rustup`](https://github.com/rust-lang/rustup.rs) to install the Rust
-`wasm64-wasix` target automatically, and then we executed `cargo` to build the
+`wasm64-wasi` target automatically, and then we executed `cargo` to build the
 WebAssembly binary. Finally `wasmer` was used and we can see that `Hello,
 world!` was printed by our program.
 

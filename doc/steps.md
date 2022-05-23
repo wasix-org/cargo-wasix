@@ -12,23 +12,23 @@ care of for you. Be sure to check out the [reference
 documentation](reference.md) for an exhaustive list of ways to run and configure
 `cargo wasix`.
 
-## Managing the `wasm64-wasix` target
+## Managing the `wasm64-wasi` target
 
-The Rust installer does not install the `wasm64-wasix` Rust standard library by
-default, but to compile any code for `wasm64-wasix` you'll need to be sure to
+The Rust installer does not install the `wasm64-wasi` Rust standard library by
+default, but to compile any code for `wasm64-wasi` you'll need to be sure to
 have this target installed for your Rust toolchain. The `cargo wasix` subcommand
 will automatically execute, if necessary:
 
 ```
-rustup target add wasm64-wasix
+rustup target add wasm64-wasi
 ```
 
 For systems not using `rustup` it will generate an error indicating whether or
 not the `wasm32-wasi` target is installed.
 
-## Automatically configure Cargo for `wasm64-wasix`
+## Automatically configure Cargo for `wasm64-wasi`
 
-Whenever `cargo wasix` is used it will automatically pass `--target wasm64-wasix`
+Whenever `cargo wasix` is used it will automatically pass `--target wasm64-wasi`
 to all Cargo subcommands that are invoked. This avoids you having to type
 this all out on each command.
 
@@ -68,7 +68,7 @@ automatically configure `wasm-bindgen` to enable interface types support.
 ## Deleting DWARF debuginfo in release mode
 
 The standard Rust toolchain, following the convention of all platforms, ships
-an optimized standard library for the `wasm64-wasix` target that contains DWARF
+an optimized standard library for the `wasm64-wasi` target that contains DWARF
 debug information. This is typically what you want in debug builds to have
 a better debugging experience for the standard library, but release builds of
 WebAssembly are often focused on size and disable debug information by default.

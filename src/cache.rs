@@ -55,11 +55,11 @@ pub struct Stamp {
 impl Stamp {
     /// Does the cache stamp file exist, and therefore we already know its
     /// associated check has already been performed on an earlier run and it
-    /// succeeded? E.g. we already ensured that the `wasm64-wasix` target is
+    /// succeeded? E.g. we already ensured that the `wasm64-wasi` target is
     /// installed.
     ///
     /// Note that this *can* be a false positive, since the user could have, for
-    /// example, deleted the `wasm64-wasix` target through `rustup`.
+    /// example, deleted the `wasm64-wasi` target through `rustup`.
     pub fn exists(&self) -> bool {
         self.path.exists()
     }
@@ -82,11 +82,11 @@ impl Stamp {
     ///
     /// `f` should return `Ok` if the cached check succeeded, and therefore the
     /// cache stamp file should be written so we don't try and re-ensure it next
-    /// time, for example if the `wasm64-wasix` target was installed correctly.
+    /// time, for example if the `wasm64-wasi` target was installed correctly.
     ///
     /// `f` should return `Err` if the cached check failed, and therefore should
     /// *not* write the cache stamp file so that we do attempt to ensure it
-    /// again next time, for example if we failed to install the `wasm64-wasix`
+    /// again next time, for example if we failed to install the `wasm64-wasi`
     /// target.
     pub fn ensure(self, f: impl FnOnce() -> Result<()>) -> Result<()> {
         if self.exists() {
