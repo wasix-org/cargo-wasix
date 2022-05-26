@@ -447,6 +447,8 @@ fn process_wasm(
         .strict_validate(false)
         .parse_file(temp)?;
 
+        config.status("Blah", "02");
+
     // Demangle everything so it's got a more readable name since there's
     // no real need to mangle the symbols in wasm.
     for func in module.funcs.iter_mut() {
@@ -597,7 +599,6 @@ fn run_wasm_opt(
     cmd.arg(&input);
     cmd.arg(format!("-O{}", profile.opt_level));
     cmd.arg("-o").arg(wasm);
-    cmd.arg("--enable-memory64");
 
     if build.enable_name_section(profile) {
         cmd.arg("--debuginfo");
