@@ -1,0 +1,23 @@
+[package]
+name = "cargo-wasix-shim"
+version = "0.0.0"
+edition = "2018"
+license = "Apache-2.0 WITH LLVM-exception"
+repository = "https://github.com/john-sharratt/cargo-wasix"
+readme = "../../README.md"
+description = """
+Subcommand for Cargo to easily build code for `wasm64-wasi`
+"""
+
+[dependencies]
+cfg-if = "1.0.0"
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+default = ['locally-developed']
+locally-developed = []
+# NB: the `[features]` section must be last in this manifest to agree with
+# `weave.rs` as part of the assemble crate. The features section here is removed
+# when publishing to crates.io
