@@ -597,6 +597,7 @@ fn run_wasm_opt(
     cmd.arg(&input);
     cmd.arg(format!("-O{}", profile.opt_level));
     cmd.arg("-o").arg(wasm);
+    cmd.arg("--enable-memory64");
 
     if build.enable_name_section(profile) {
         cmd.arg("--debuginfo");
