@@ -161,9 +161,10 @@ fn rmain(config: &mut Config) -> Result<()> {
         //
         // Note that we remove files before renaming and such to ensure that
         // we're not accidentally updating the wrong hard link and such.
+        /*
         let temporary_rustc = wasm.with_extension("rustc.wasm");
         let temporary_wasix = wasm.with_extension("wasix.wasm");
-
+        
         drop(fs::remove_file(&temporary_rustc));
         fs::rename(wasm, &temporary_rustc)?;
         if !*fresh || !temporary_wasix.exists() {
@@ -188,6 +189,7 @@ fn rmain(config: &mut Config) -> Result<()> {
         drop(fs::remove_file(&wasm));
         fs::hard_link(&temporary_wasix, &wasm)
             .or_else(|_| fs::copy(&temporary_wasix, &wasm).map(|_| ()))?;
+        */
     }
 
     for run in build.runs.iter() {
@@ -446,8 +448,6 @@ fn process_wasm(
         .generate_producers_section(build.enable_producers_section(profile))
         .strict_validate(false)
         .parse_file(temp)?;
-
-        config.status("Blah", "02");
 
     // Demangle everything so it's got a more readable name since there's
     // no real need to mangle the symbols in wasm.
