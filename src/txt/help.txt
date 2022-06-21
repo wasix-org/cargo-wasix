@@ -1,0 +1,22 @@
+\
+cargo-wasix
+Compile and run a Rust crate for the wasm64-wasmer-wasi target (WASIX)
+
+USAGE:
+    cargo wasix build [OPTIONS]
+    cargo wasix run [OPTIONS]
+    cargo wasix test [OPTIONS]
+    cargo wasix bench [OPTIONS]
+    cargo wasix check [OPTIONS]
+    cargo wasix fix [OPTIONS]
+    cargo wasix self clean
+    cargo wasix self update-check
+
+For 64-bit binaries:
+    cargo wasix build64 [OPTIONS]
+    cargo wasix run64 [OPTIONS]
+
+All options accepted are the same as that of the corresponding `cargo`
+subcommands. You can run `cargo wasix build -h` for more information to learn
+about flags that can be passed to `cargo wasix build`, which mirrors the
+`cargo build` command.
