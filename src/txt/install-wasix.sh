@@ -27,12 +27,10 @@ if [ ! -f /opt/wasix-rust/done.pulled ]; then
   git config -f .gitmodules submodule.src/doc/nomicon.shallow true
   git config -f .gitmodules submodule.src/tools/cargo.shallow true
   git config -f .gitmodules submodule.src/doc/reference.shallow true
-  git config -f .gitmodules submodule.src/doc/book.shallow true
   git config -f .gitmodules submodule.src/tools/rls.shallow true
   git config -f .gitmodules submodule.src/tool/miri.shallow true
   git config -f .gitmodules submodule.src/doc/rust-by-example.shallow true
   git config -f .gitmodules submodule.library/stdarch.shallow true
-  git config -f .gitmodules submodule.src/doc/rustc-dev-guide.shallow true
   git config -f .gitmodules submodule.src/doc/edition-guide.shallow true
   git config -f .gitmodules submodule.src/llvm-project.shallow true
   git config -f .gitmodules submodule.src/doc/embedded-book.shallow true

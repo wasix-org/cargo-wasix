@@ -1,6 +1,6 @@
 [package]
 name = "cargo-wasix"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Alex Crichton <alex@alexcrichton.com>", "John Sharratt <johnathan.sharratt@gmail.com"]
 edition = "2018"
 license = "Apache-2.0 WITH LLVM-exception"
