@@ -4,6 +4,8 @@ use crate::utils::CommandExt;
 use anyhow::{bail, Context, Result};
 use std::env;
 use std::fs;
+use std::io::BufWriter;
+use std::io::Write;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -48,14 +50,20 @@ fn rmain(config: &mut Config) -> Result<()> {
     config.load_cache()?;
 
     // skip the current executable and the `wasix` inserted by Cargo
+    let mut is64bit = false;
     let mut args = env::args_os().skip(2);
     let subcommand = args.next().and_then(|s| s.into_string().ok());
     let subcommand = match subcommand.as_ref().map(|s| s.as_str()) {
         Some("build") => Subcommand::Build,
+        Some("build64") => { is64bit = true; Subcommand::Build }
         Some("run") => Subcommand::Run,
+        Some("run64") => { is64bit = true; Subcommand::Run }
         Some("test") => Subcommand::Test,
+        Some("test64") => { is64bit = true; Subcommand::Test },
         Some("bench") => Subcommand::Bench,
+        Some("bench64") => { is64bit = true; Subcommand::Bench },
         Some("check") => Subcommand::Check,
+        Some("check64") => { is64bit = true; Subcommand::Check },
         Some("fix") => Subcommand::Fix,
         Some("self") => return internal::main(&args.collect::<Vec<_>>(), config),
         Some("version") | Some("-V") | Some("--version") => {
@@ -70,6 +78,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     };
 
     let mut cargo = Command::new("cargo");
+    cargo.arg("+wasix");
     cargo.arg(match subcommand {
         Subcommand::Build => "build",
         Subcommand::Check => "check",
@@ -81,7 +90,11 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // TODO: figure out when these flags are already passed to `cargo` and skip
     // passing them ourselves.
-    cargo.arg("--target").arg("wasm64-wasi");
+    if is64bit {
+        cargo.arg("--target").arg("wasm64-wasmer-wasi");
+    } else {
+        cargo.arg("--target").arg("wasm32-wasmer-wasi");
+    }
     cargo.arg("--message-format").arg("json-render-diagnostics");
     for arg in args {
         if let Some(arg) = arg.to_str() {
@@ -148,48 +161,48 @@ fn rmain(config: &mut Config) -> Result<()> {
     let update_check = internal::UpdateCheck::new(config);
     install_wasix_target(&config)?;
     let build = execute_cargo(&mut cargo, &config)?;
-    for (wasm, profile, fresh) in build.wasms.iter() {
-        // Cargo will always overwrite our `wasm` above with its own internal
-        // cache. It's internal cache largely uses hard links.
-        //
-        // If `fresh` is *false*, then Cargo just built `wasm` and we need to
-        // process it. If `fresh` is *true*, then we may have previously
-        // processed it. If our previous processing was successful the output
-        // was placed at `*.wasix.wasm`, so we use that to overwrite the
-        // `*.wasm` file. In the process we also create a `*.rustc.wasm` for
-        // debugging.
-        //
-        // Note that we remove files before renaming and such to ensure that
-        // we're not accidentally updating the wrong hard link and such.
-        /*
-        let temporary_rustc = wasm.with_extension("rustc.wasm");
-        let temporary_wasix = wasm.with_extension("wasix.wasm");
-        
-        drop(fs::remove_file(&temporary_rustc));
-        fs::rename(wasm, &temporary_rustc)?;
-        if !*fresh || !temporary_wasix.exists() {
-            // If we found `wasm-bindgen` as a dependency when building then
-            // automatically execute the `wasm-bindgen` CLI, otherwise just process
-            // using normal `walrus` commands.
-            let result = match &build.wasm_bindgen {
-                Some(version) => run_wasm_bindgen(
-                    &temporary_wasix,
-                    &temporary_rustc,
-                    profile,
-                    version,
-                    &build,
-                    &config,
-                ),
-                None => process_wasm(&temporary_wasix, &temporary_rustc, profile, &build, &config),
-            };
-            result.with_context(|| {
-                format!("failed to process wasm at `{}`", temporary_rustc.display())
-            })?;
+    if is64bit == false {
+        for (wasm, profile, fresh) in build.wasms.iter() {
+            // Cargo will always overwrite our `wasm` above with its own internal
+            // cache. It's internal cache largely uses hard links.
+            //
+            // If `fresh` is *false*, then Cargo just built `wasm` and we need to
+            // process it. If `fresh` is *true*, then we may have previously
+            // processed it. If our previous processing was successful the output
+            // was placed at `*.wasix.wasm`, so we use that to overwrite the
+            // `*.wasm` file. In the process we also create a `*.rustc.wasm` for
+            // debugging.
+            //
+            // Note that we remove files before renaming and such to ensure that
+            // we're not accidentally updating the wrong hard link and such.
+            let temporary_rustc = wasm.with_extension("rustc.wasm");
+            let temporary_wasix = wasm.with_extension("wasix.wasm");
+            
+            drop(fs::remove_file(&temporary_rustc));
+            fs::rename(wasm, &temporary_rustc)?;
+            if !*fresh || !temporary_wasix.exists() {
+                // If we found `wasm-bindgen` as a dependency when building then
+                // automatically execute the `wasm-bindgen` CLI, otherwise just process
+                // using normal `walrus` commands.
+                let result = match &build.wasm_bindgen {
+                    Some(version) => run_wasm_bindgen(
+                        &temporary_wasix,
+                        &temporary_rustc,
+                        profile,
+                        version,
+                        &build,
+                        &config,
+                    ),
+                    None => process_wasm(&temporary_wasix, &temporary_rustc, profile, &build, &config),
+                };
+                result.with_context(|| {
+                    format!("failed to process wasm at `{}`", temporary_rustc.display())
+                })?;
+            }
+            drop(fs::remove_file(&wasm));
+            fs::hard_link(&temporary_wasix, &wasm)
+                .or_else(|_| fs::copy(&temporary_wasix, &wasm).map(|_| ()))?;
         }
-        drop(fs::remove_file(&wasm));
-        fs::hard_link(&temporary_wasix, &wasm)
-            .or_else(|_| fs::copy(&temporary_wasix, &wasm).map(|_| ()))?;
-        */
     }
 
     for run in build.runs.iter() {
@@ -205,77 +218,76 @@ fn rmain(config: &mut Config) -> Result<()> {
     Ok(())
 }
 
+pub const HELP: &'static str = include_str!("txt/help.txt");
+pub const INSTALL: &'static str = include_str!("txt/install-wasix.sh");
+
 fn print_help() -> ! {
-    println!(
-        "\
-cargo-wasix
-Compile and run a Rust crate for the wasm64-wasi target
-
-USAGE:
-    cargo wasix build [OPTIONS]
-    cargo wasix run [OPTIONS]
-    cargo wasix test [OPTIONS]
-    cargo wasix bench [OPTIONS]
-    cargo wasix check [OPTIONS]
-    cargo wasix fix [OPTIONS]
-    cargo wasix self clean
-    cargo wasix self update-check
-
-All options accepted are the same as that of the corresponding `cargo`
-subcommands. You can run `cargo wasix build -h` for more information to learn
-about flags that can be passed to `cargo wasix build`, which mirrors the
-`cargo build` command.
-"
-    );
+    println!("{}", HELP);
     std::process::exit(0);
 }
 
 /// Installs the `wasm64-wasi` target into our global cache.
-fn install_wasix_target(config: &Config) -> Result<()> {
-    // We'll make a stamp file when we verify that wasm64-wasi is installed to
-    // accelerate future checks. If that file exists, we're good to go.
-    //
-    // Note that we account for `$RUSTUP_TOOLCHAIN` if it exists to ensure that
-    // if you're moving across toolchains we always make sure that wasix is
-    // installed.
-    let stamp_name = "wasix-target-installed".to_string()
-        + &env::var("RUSTUP_TOOLCHAIN").unwrap_or("".to_string());
-    config.cache().stamp(stamp_name).ensure(|| {
-        // Ok we need to actually check since this is perhaps the first time we've
-        // ever checked. Let's ask rustc what its sysroot is and see if it has a
-        // wasm64-wasi folder.
-        let sysroot = Command::new("rustc")
-            .arg("--print")
-            .arg("sysroot")
-            .capture_stdout()?;
+fn install_wasix_target(config: &Config) -> Result<()>
+{
+    // rustup is not itself synchronized across processes so at least attempt to
+    // synchronize our own calls. This may not work and if it doesn't we tried,
+    // this is largely opportunistic anyway.
+    let _lock = utils::flock(&config.cache().root().join("rustup-lock"));
+
+    // First check if the toolchain is present
+    let toolchains = Command::new("rustup")
+        .arg("toolchain")
+        .arg("list")
+        .capture_stdout()
+        .ok();
+    let has_wasix_toolchain = if let Some(toolchains) = toolchains {
+        toolchains.lines().any(|a| a == "wasix")
+    } else {
+        false
+    };
+    
+    // Install the toolchain if its not there
+    if has_wasix_toolchain == false
+    {
+        // Read WASIX installation script and run it with SH
+        let mut cmd = Command::new("sh")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
+            .spawn()?;
+        let mut outstdin = cmd.stdin.take().unwrap();
+        let mut writer = BufWriter::new(&mut outstdin);
+        writer.write_all(INSTALL.as_bytes())?;
+        drop(writer);
+        drop(outstdin);
+
+        cmd.wait()?;
+    }
+
+    // Ok we need to actually check since this is perhaps the first time we've
+    // ever checked. Let's ask rustc what its sysroot is and see if it has a
+    // wasm64-wasi folder.
+    let push_toolchain = env::var("RUSTUP_TOOLCHAIN").unwrap_or("".to_string());
+    env::set_var("RUSTUP_TOOLCHAIN", "wasix");
+    let sysroot = Command::new("rustc")
+        .arg("--print")
+        .arg("sysroot")
+        .capture_stdout()
+        .ok();
+    if let Some(sysroot) = sysroot {
         let sysroot = Path::new(sysroot.trim());
-        if sysroot.join("lib/rustlib/wasm64-wasi").exists() {
+        if sysroot.join("lib/rustlib/wasm32-wasmer-wasi").exists() {
+            env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
             return Ok(());
         }
-
-        // ... and that doesn't exist, so we need to install it! If we're not a
-        // rustup toolchain then someone else has to figure out how to install the
-        // wasix target, otherwise we delegate to rustup.
-        if env::var_os("RUSTUP_TOOLCHAIN").is_none() {
-            bail!(
-                "failed to find the `wasm64-wasi` target installed, and rustup \
-                 is also not detected, you'll need to be sure to install the \
-                 `wasm64-wasi` target before using this command"
-            );
-        }
-
-        // rustup is not itself synchronized across processes so at least attempt to
-        // synchronize our own calls. This may not work and if it doesn't we tried,
-        // this is largely opportunistic anyway.
-        let _lock = utils::flock(&config.cache().root().join("rustup-lock"));
-
-        Command::new("rustup")
-            .arg("target")
-            .arg("add")
-            .arg("wasm64-wasi")
-            .run()?;
-        Ok(())
-    })
+    }
+    env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
+    
+    bail!(
+        "failed to find the `wasm64-wasmer-wasi` target installed, and rustup \
+        is also not detected, you'll need to be sure to install the \
+        `wasm64-wasi` target before using this command"
+    );
 }
 
 #[derive(Default, Debug)]
