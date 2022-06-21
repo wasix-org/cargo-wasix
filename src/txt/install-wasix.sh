@@ -28,7 +28,7 @@ if [ ! -f /opt/wasix-rust/done.pulled ]; then
   git config -f .gitmodules submodule.src/tools/cargo.shallow true
   git config -f .gitmodules submodule.src/doc/reference.shallow true
   git config -f .gitmodules submodule.src/tools/rls.shallow true
-  git config -f .gitmodules submodule.src/tool/miri.shallow true
+  git config -f .gitmodules submodule.src/tools/miri.shallow true
   git config -f .gitmodules submodule.src/doc/rust-by-example.shallow true
   git config -f .gitmodules submodule.library/stdarch.shallow true
   git config -f .gitmodules submodule.src/doc/edition-guide.shallow true
@@ -36,7 +36,19 @@ if [ ! -f /opt/wasix-rust/done.pulled ]; then
   git config -f .gitmodules submodule.src/doc/embedded-book.shallow true
   git config -f .gitmodules submodule.src/tools/rust-analyzer.shallow true
   git config -f .gitmodules submodule.library/backtrace.shallow true
-  git submodule update --init
+  git submodule update --init src/rust-installer
+  git submodule update --init src/doc/nomicon
+  git submodule update --init src/tools/cargo
+  git submodule update --init src/doc/reference
+  git submodule update --init src/tools/rls
+  git submodule update --init src/tools/miri
+  git submodule update --init src/doc/rust-by-example
+  git submodule update --init library/stdarch
+  git submodule update --init src/doc/edition-guide
+  git submodule update --init src/llvm-project
+  git submodule update --init src/doc/embedded-book
+  git submodule update --init src/tools/rust-analyzer
+  git submodule update --init library/backtrace
   touch done.pulled
   cd ..
 else
