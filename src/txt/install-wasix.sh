@@ -3,23 +3,30 @@
 # Install pre-reqs
 if ! apt -qq list python 2>/dev/null | grep -q installed &&
    ! apt -qq list python2 2>/dev/null | grep -q installed; then
+  echo "Installing python..."
   sudo apt install python
 fi
 if ! apt -qq list ninja-build 2>/dev/null | grep -q installed; then
+  echo "Installing ninja..."
   sudo apt install ninja-build
 fi
 if ! apt -qq list git 2>/dev/null | grep -q installed; then
+  echo "Installing git..."
   sudo apt install git
 fi
+echo "Removing previous WASIX toolchains..."
 rustup toolchain uninstall wasix || true
 
 CUR_DIR=$(pwd)
 
 # Download the RUST sourcecode
+echo "Downloading RUST standard library and toolchain..."
 if [ ! -f /opt/wasix-rust/done.pulled ]; then
   cd /opt
-  sudo mkdir -p wasix-rust
-  sudo chmod 777 wasix-rust
+  if [ ! -d /opt/wasix-rust ]; then
+    sudo mkdir -p wasix-rust
+    sudo chmod 777 wasix-rust
+  fi
   git clone --branch wasix --depth=1 https://github.com/john-sharratt/rust.git wasix-rust
   git config --global --add safe.directory /opt/wasix-rust
   cd wasix-rust
@@ -57,11 +64,14 @@ else
 fi
 
 # Download the LIBC source code
+echo "Downloading WASIX libc..."
 cd $CUR_DIR
-if [ ! -d /opt/wasix-libc/done.pulled ]; then
+if [ ! -f /opt/wasix-libc/done.pulled ]; then
   cd /opt
-  sudo mkdir -p wasix-libc
-  sudo chmod 777 wasix-libc
+  if [ ! -d /opt/wasix-libc ]; then
+    sudo mkdir -p wasix-libc
+    sudo chmod 777 wasix-libc
+  fi
   git clone --depth=1 https://github.com/john-sharratt/wasix-libc.git wasix-libc
   git config --global --add safe.directory /opt/wasix-libc
   cd wasix-libc
@@ -75,6 +85,7 @@ fi
 cd $CUR_DIR
 
 # Copy the configuration file over
+echo "Injecting RUST toolchain configuration..."
 cat >/opt/wasix-rust/config.toml <<EOF
 changelog-seen = 2
 
@@ -96,18 +107,19 @@ wasi-root = "../wasix-libc/sysroot64"
 EOF
 
 # Build the sysroots
+echo "Building WASIX libc..."
 cd /opt/wasix-libc
 ./build32.sh
 ./build64.sh
 cd $CUR_DIR
 
 # Run the build
+echo "Building RUST toolchain (WASIX)..."
 cd /opt/wasix-rust
 ./x.py build
 ./x.py build --stage 2
+echo "Installing RUST toolchain (WASIX)..."
 rustup toolchain link wasix ./build/$(uname -m)-unknown-$OSTYPE/stage2
 cd $CUR_DIR
-
-echo "rustup toolchain link wasix ./build/$(uname -m)-unknown-$OSTYPE/stage2"
 
 #rustup default wasix
