@@ -159,7 +159,17 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     let update_check = internal::UpdateCheck::new(config);
-    install_wasix_target(&config)?;
+    install_wasix_target(&config, is64bit)?;
+
+    // Set the SYSROOT
+    if env::var("WASI_SDK_DIR").is_err() {
+        if is64bit {
+            env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot64/");
+        } else {
+            env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot32/");
+        }
+    }
+    
     let build = execute_cargo(&mut cargo, &config)?;
     if is64bit == false {
         for (wasm, profile, fresh) in build.wasms.iter() {
@@ -227,7 +237,7 @@ fn print_help() -> ! {
 }
 
 /// Installs the `wasm64-wasi` target into our global cache.
-fn install_wasix_target(config: &Config) -> Result<()>
+fn install_wasix_target(config: &Config, is64bit: bool) -> Result<()>
 {
     // rustup is not itself synchronized across processes so at least attempt to
     // synchronize our own calls. This may not work and if it doesn't we tried,
@@ -250,7 +260,7 @@ fn install_wasix_target(config: &Config) -> Result<()>
     if has_wasix_toolchain == false
     {
         // Read WASIX installation script and run it with SH
-        let mut cmd = Command::new("sh")
+        let mut cmd = Command::new("bash")
             .stdin(Stdio::piped())
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
@@ -276,7 +286,12 @@ fn install_wasix_target(config: &Config) -> Result<()>
         .ok();
     if let Some(sysroot) = sysroot {
         let sysroot = Path::new(sysroot.trim());
-        if sysroot.join("lib/rustlib/wasm32-wasmer-wasi").exists() {
+        let lib_name = if is64bit {
+            "lib/rustlib/wasm64-wasmer-wasi"
+        } else {
+            "lib/rustlib/wasm32-wasmer-wasi"
+        };
+        if sysroot.join(lib_name).exists() {
             env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
             return Ok(());
         }
