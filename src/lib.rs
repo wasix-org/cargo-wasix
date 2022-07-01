@@ -162,6 +162,8 @@ fn rmain(config: &mut Config) -> Result<()> {
     install_wasix_target(&config, is64bit)?;
 
     // Set the SYSROOT
+    env::set_var("WASI_SDK_DIR", "");
+    /*
     if env::var("WASI_SDK_DIR").is_err() {
         if is64bit {
             env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot64/");
@@ -169,8 +171,17 @@ fn rmain(config: &mut Config) -> Result<()> {
             env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot32/");
         }
     }
+    if let Ok(dir) = env::var("WASI_SDK_DIR") {
+        config.verbose(|| config.status("WASI_SDK_DIR={}", &dir));
+    }
+    */
+
+    // Set some flags for RUST
+    env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
     
+    // Run the cargo commands
     let build = execute_cargo(&mut cargo, &config)?;
+    
     if is64bit == false {
         for (wasm, profile, fresh) in build.wasms.iter() {
             // Cargo will always overwrite our `wasm` above with its own internal

@@ -27,7 +27,7 @@ if [ ! -f /opt/wasix-rust/done.pulled ]; then
     sudo mkdir -p wasix-rust
     sudo chmod 777 wasix-rust
   fi
-  git clone --branch wasix --depth=1 https://github.com/john-sharratt/rust.git wasix-rust
+  git clone --branch wasix2 --depth=1 https://github.com/john-sharratt/rust.git wasix-rust
   git config --global --add safe.directory /opt/wasix-rust
   cd wasix-rust
   git config -f .gitmodules submodule.src/rust-installer.shallow true
