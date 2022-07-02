@@ -161,9 +161,18 @@ fn rmain(config: &mut Config) -> Result<()> {
     let update_check = internal::UpdateCheck::new(config);
     install_wasix_target(&config, is64bit)?;
 
+    // Set the CC target to be the WASI subsystem
+    //env::set_var("CARGO_CFG_TARGET_FAMILY", "wasm");
+    //env::set_var("CARGO_CFG_TARGET_VENDOR", "wasmer");
+    //env::set_var("CARGO_CFG_TARGET_OS", "wasi");
+    //if is64bit {
+    //    env::set_var("CARGO_CFG_TARGET_ARCH", "wasm64");
+    //} else {
+    //    env::set_var("CARGO_CFG_TARGET_ARCH", "wasm32");
+    //}
+
     // Set the SYSROOT
-    env::set_var("WASI_SDK_DIR", "");
-    /*
+    //env::set_var("WASI_SDK_DIR", "");
     if env::var("WASI_SDK_DIR").is_err() {
         if is64bit {
             env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot64/");
@@ -174,8 +183,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     if let Ok(dir) = env::var("WASI_SDK_DIR") {
         config.verbose(|| config.status("WASI_SDK_DIR={}", &dir));
     }
-    */
-
+    
     // Set some flags for RUST
     env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
     
