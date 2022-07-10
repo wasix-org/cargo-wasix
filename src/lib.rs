@@ -43,6 +43,7 @@ enum Subcommand {
     Test,
     Bench,
     Check,
+    Tree,
     Fix,
 }
 
@@ -51,6 +52,7 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // skip the current executable and the `wasix` inserted by Cargo
     let mut is64bit = false;
+    let mut no_message_format = false;
     let mut args = env::args_os().skip(2);
     let subcommand = args.next().and_then(|s| s.into_string().ok());
     let subcommand = match subcommand.as_ref().map(|s| s.as_str()) {
@@ -64,6 +66,8 @@ fn rmain(config: &mut Config) -> Result<()> {
         Some("bench64") => { is64bit = true; Subcommand::Bench },
         Some("check") => Subcommand::Check,
         Some("check64") => { is64bit = true; Subcommand::Check },
+        Some("tree") => { no_message_format = true; Subcommand::Tree },
+        Some("tree64") => { is64bit = true; no_message_format = true; Subcommand::Tree },
         Some("fix") => Subcommand::Fix,
         Some("self") => return internal::main(&args.collect::<Vec<_>>(), config),
         Some("version") | Some("-V") | Some("--version") => {
@@ -84,6 +88,7 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Check => "check",
         Subcommand::Fix => "fix",
         Subcommand::Test => "test",
+        Subcommand::Tree => "tree",
         Subcommand::Bench => "bench",
         Subcommand::Run => "run",
     });
@@ -95,7 +100,9 @@ fn rmain(config: &mut Config) -> Result<()> {
     } else {
         cargo.arg("--target").arg("wasm32-wasmer-wasi");
     }
-    cargo.arg("--message-format").arg("json-render-diagnostics");
+    if no_message_format == false {
+        cargo.arg("--message-format").arg("json-render-diagnostics");
+    }
     for arg in args {
         if let Some(arg) = arg.to_str() {
             if arg.starts_with("--verbose") || arg.starts_with("-v") {
@@ -155,7 +162,7 @@ fn rmain(config: &mut Config) -> Result<()> {
             cargo.env("CARGO_TARGET_WASM32_WASIX_RUNNER", env::current_exe()?);
         }
 
-        Subcommand::Build | Subcommand::Check | Subcommand::Fix => {}
+        Subcommand::Build | Subcommand::Check | Subcommand::Tree | Subcommand::Fix => {}
     }
 
     let update_check = internal::UpdateCheck::new(config);
