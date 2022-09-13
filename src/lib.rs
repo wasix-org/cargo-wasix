@@ -2,8 +2,10 @@ use crate::cache::Cache;
 use crate::config::Config;
 use crate::utils::CommandExt;
 use anyhow::{bail, Context, Result};
+use tool_path::ToolPath;
 use std::env;
 use std::fs;
+use std::io;
 use std::io::BufWriter;
 use std::io::Write;
 use std::io::Read;
@@ -13,6 +15,7 @@ use std::process::{Command, Stdio};
 mod cache;
 mod config;
 mod internal;
+mod tool_path;
 mod utils;
 
 pub fn main() {
@@ -186,6 +189,35 @@ fn rmain(config: &mut Config) -> Result<()> {
     // Run the cargo commands
     let build = execute_cargo(&mut cargo, &config)?;
 
+    for (wasm, profile, fresh) in build.wasms.iter() {
+        // Cargo will always overwrite our `wasm` above with its own internal
+        // cache. It's internal cache largely uses hard links.
+        //
+        // If `fresh` is *false*, then Cargo just built `wasm` and we need to
+        // process it. If `fresh` is *true*, then we may have previously
+        // processed it. If our previous processing was successful the output
+        // was placed at `*.wasi.wasm`, so we use that to overwrite the
+        // `*.wasm` file. In the process we also create a `*.rustc.wasm` for
+        // debugging.
+        //
+        // Note that we remove files before renaming and such to ensure that
+        // we're not accidentally updating the wrong hard link and such.
+        let temporary_rustc = wasm.with_extension("rustc.wasm");
+        let temporary_wasi = wasm.with_extension("wasi.wasm");
+
+        drop(fs::remove_file(&temporary_rustc));
+        fs::rename(wasm, &temporary_rustc)?;
+        if !*fresh || !temporary_wasi.exists() {
+            let result = process_wasm(&temporary_wasi, &temporary_rustc, profile, &build, &config);
+            result.with_context(|| {
+                format!("failed to process wasm at `{}`", temporary_rustc.display())
+            })?;
+        }
+        drop(fs::remove_file(&wasm));
+        fs::hard_link(&temporary_wasi, &wasm)
+            .or_else(|_| fs::copy(&temporary_wasi, &wasm).map(|_| ()))?;
+    }
+
     for run in build.runs.iter() {
         config.status("Running", &format!("`{}`", run.join(" ")));
         Command::new(&wasix_runner)
@@ -301,6 +333,9 @@ struct Profile {
 #[derive(serde::Deserialize, Debug, Default)]
 #[serde(rename_all = "kebab-case")]
 struct ManifestConfig {
+    wasm_opt: Option<bool>,
+    wasm_name_section: Option<bool>,
+    wasm_producers_section: Option<bool>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -317,6 +352,110 @@ enum CargoMessage {
         args: Vec<String>,
     },
     BuildFinished,
+}
+
+impl CargoBuild {
+    fn enable_name_section(&self, profile: &Profile) -> bool {
+        profile.debuginfo.is_some() || self.manifest_config.wasm_name_section.unwrap_or(true)
+    }
+
+    fn enable_producers_section(&self, profile: &Profile) -> bool {
+        profile.debuginfo.is_some() || self.manifest_config.wasm_producers_section.unwrap_or(true)
+    }
+}
+
+/// Process a wasm file that doesn't use `wasm-bindgen`, using `walrus` instead.
+///
+/// This will load up the module and do things like:
+///
+/// * Unconditionally demangle all Rust function names.
+/// * Use `profile` to optionally drop debug information
+fn process_wasm(
+    wasm: &Path,
+    temp: &Path,
+    profile: &Profile,
+    build: &CargoBuild,
+    config: &Config,
+) -> Result<()> {
+    config.verbose(|| {
+        config.status("Processing", &temp.display().to_string());
+    });
+
+    let mut module = walrus::ModuleConfig::new()
+        // If the `debuginfo` is configured then we leave in the debuginfo
+        // sections.
+        .generate_dwarf(profile.debuginfo.is_some())
+        .generate_name_section(build.enable_name_section(profile))
+        .generate_producers_section(build.enable_producers_section(profile))
+        .strict_validate(false)
+        .parse_file(temp)?;
+
+    // Demangle everything so it's got a more readable name since there's
+    // no real need to mangle the symbols in wasm.
+    for func in module.funcs.iter_mut() {
+        if let Some(name) = &mut func.name {
+            if let Ok(sym) = rustc_demangle::try_demangle(name) {
+                *name = sym.to_string();
+            }
+        }
+    }
+
+    run_wasm_opt(wasm, &module.emit_wasm(), profile, build, config)?;
+    Ok(())
+}
+
+fn run_wasm_opt(
+    wasm: &Path,
+    bytes: &[u8],
+    profile: &Profile,
+    build: &CargoBuild,
+    config: &Config,
+) -> Result<()> {
+    // If debuginfo is enabled, automatically disable `wasm-opt`. It will mess
+    // up dwarf debug information currently, so we can't run it.
+    //
+    // Additionally if no optimizations are enabled, no need to run `wasm-opt`,
+    // we're not optimizing.
+    if profile.debuginfo.is_some() || profile.opt_level == "0" {
+        fs::write(wasm, bytes)?;
+        return Ok(());
+    }
+
+    // Allow explicitly disabling wasm-opt via `Cargo.toml`.
+    if build.manifest_config.wasm_opt == Some(false) {
+        fs::write(wasm, bytes)?;
+        return Ok(());
+    }
+
+    config.status("Optimizing", "with wasm-opt");
+    let tempdir = tempfile::TempDir::new_in(wasm.parent().unwrap())
+        .context("failed to create temporary directory")?;
+    let wasm_opt = config.get_wasm_opt();
+
+    let input = tempdir.path().join("input.wasm");
+    fs::write(&input, &bytes)?;
+    let mut cmd = Command::new(wasm_opt.bin_path());
+    cmd.arg(&input);
+    cmd.arg(format!("-O{}", profile.opt_level));
+    cmd.arg("-o").arg(wasm);
+    cmd.arg("--strip-producers");
+    cmd.arg("--asyncify");
+
+    if build.enable_name_section(profile) {
+        cmd.arg("--debuginfo");
+    } else {
+        cmd.arg("--strip-debug");
+    }
+    
+    run_or_download(
+        wasm_opt.bin_path(),
+        wasm_opt.is_overridden(),
+        &mut cmd,
+        config,
+        || install_wasm_opt(&wasm_opt, config),
+    )
+    .context("`wasm-opt` failed to execute")?;
+    Ok(())
 }
 
 /// Executes the `cargo` command, reading all of the JSON that pops out and
@@ -406,4 +545,154 @@ fn execute_cargo(cargo: &mut Command, config: &Config) -> Result<CargoBuild> {
     }
 
     Ok(build)
+}
+
+/// Attempts to execute `cmd` which is executing `requested`.
+///
+/// If the execution fails because `requested` isn't found *and* `requested` is
+/// the same as the `cache` path provided, then `download` is invoked to
+/// download the tool and then we re-execute `cmd` after the download has
+/// finished.
+///
+/// Additionally nice diagnostics and such are printed along the way.
+fn run_or_download(
+    requested: &Path,
+    is_overridden: bool,
+    cmd: &mut Command,
+    config: &Config,
+    download: impl FnOnce() -> Result<()>,
+) -> Result<()> {
+    // NB: this is explicitly set up so that, by default, we simply execute the
+    // command and assume that it exists. That should ideally avoid a few extra
+    // syscalls to detect "will things work?"
+    config.verbose(|| {
+        if requested.exists() {
+            config.status("Running", &format!("{:?}", cmd));
+        }
+    });
+
+    let err = match cmd.run() {
+        Ok(()) => return Ok(()),
+        Err(e) => e,
+    };
+    let rerun_after_download = err.chain().any(|e| {
+        // NotFound means we need to clearly download, PermissionDenied may mean
+        // that we were racing a download and the file wasn't executable, so
+        // fall through and wait for the download to finish to try again.
+        if let Some(err) = e.downcast_ref::<io::Error>() {
+            return err.kind() == io::ErrorKind::NotFound
+                || err.kind() == io::ErrorKind::PermissionDenied;
+        }
+        false
+    });
+
+    // This may have failed for some reason other than `NotFound`, in which case
+    // it's a legitimate error. Additionally `requested` may not actually be a
+    // path that we download, in which case there's also nothing that we can do.
+    if !rerun_after_download || is_overridden {
+        return Err(err);
+    }
+
+    download()?;
+    config.verbose(|| {
+        config.status("Running", &format!("{:?}", cmd));
+    });
+    cmd.run()
+}
+
+fn install_wasm_opt(path: &ToolPath, config: &Config) -> Result<()> {
+    let tag = "version_109";
+    let binaryen_url = |target: &str| {
+        let mut url = "https://github.com/WebAssembly/binaryen/releases/download/".to_string();
+        url.push_str(tag);
+        url.push_str("/binaryen-");
+        url.push_str(tag);
+        url.push_str("-");
+        url.push_str(target);
+        url.push_str(".tar.gz");
+        return url;
+    };
+
+    let url = if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
+        binaryen_url("x86_64-linux")
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "x86_64") {
+        binaryen_url("x86_64-macos")
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        binaryen_url("arm64-macos")
+    } else if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
+        binaryen_url("x86_64-windows")
+    } else {
+        bail!(
+            "no precompiled binaries of `wasm-opt` are available for this \
+             platform, you'll want to set `$WASM_OPT` to a preinstalled \
+             `wasm-opt` command or disable via `wasm-opt = false` in \
+             your manifest"
+        )
+    };
+
+    let (base_path, sub_paths) = path.cache_paths().unwrap();
+    download(
+        &url,
+        &format!("precompiled wasm-opt {}", tag),
+        base_path,
+        sub_paths,
+        config,
+    )
+}
+
+fn download(
+    url: &str,
+    name: &str,
+    parent: &Path,
+    sub_paths: &Vec<PathBuf>,
+    config: &Config,
+) -> Result<()> {
+    // Globally lock ourselves downloading things to coordinate with any other
+    // instances of `cargo-wasi` doing a download. This is a bit coarse, but it
+    // gets the job done. Additionally if someone else does the download for us
+    // then we can simply return.
+    let _flock = utils::flock(&config.cache().root().join("downloading"));
+    if sub_paths
+        .iter()
+        .all(|sub_path| parent.join(sub_path).exists())
+    {
+        return Ok(());
+    }
+
+    // Ok, let's actually do the download
+    config.status("Downloading", name);
+    config.verbose(|| config.status("Get", &url));
+
+    let response = utils::get(url)?;
+    (|| -> Result<()> {
+        fs::create_dir_all(parent)
+            .context(format!("failed to create directory `{}`", parent.display()))?;
+
+        let decompressed = flate2::read::GzDecoder::new(response);
+        let mut tar = tar::Archive::new(decompressed);
+        for entry in tar.entries()? {
+            let mut entry = entry?;
+            let path = entry.path()?.into_owned();
+            for sub_path in sub_paths {
+                if path.ends_with(sub_path) {
+                    let entry_path = parent.join(sub_path);
+                    let dir = entry_path.parent().unwrap();
+                    if !dir.exists() {
+                        fs::create_dir_all(dir)
+                            .context(format!("failed to create directory `{}`", dir.display()))?;
+                    }
+                    entry.unpack(entry_path)?;
+                }
+            }
+        }
+
+        for missing in sub_paths
+            .iter()
+            .filter(|sub_path| !parent.join(sub_path).exists())
+        {
+            bail!("failed to find {:?} in archive", missing);
+        }
+        Ok(())
+    })()
+    .context(format!("failed to extract tarball from {}", url))
 }

@@ -1,5 +1,11 @@
 #!/bin/bash -e
 
+# If the toolchain is already there then abort
+if rustup toolchain list | grep -q wasix; then
+  echo "WASIX is already installed (to uninstall execute 'rustup toolchain uninstall wasix'"
+  exit 1
+fi
+
 # Install pre-reqs
 if ! apt -qq list python 2>/dev/null | grep -q installed &&
    ! apt -qq list python2 2>/dev/null | grep -q installed; then

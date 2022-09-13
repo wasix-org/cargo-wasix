@@ -1,4 +1,6 @@
-use crate::Cache;
+use std::path::PathBuf;
+
+use crate::{Cache, tool_path::ToolPath};
 use anyhow::Result;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -78,5 +80,58 @@ impl Config {
         eprint!("info");
         drop(shell.reset());
         eprintln!(": {}", msg);
+    }
+
+    /// Returns the path to execute a tool, which may be the cache path to
+    /// download it to if unavailable, and whether the path has been
+    /// overridden.
+    ///
+    /// To override the path used for a tool, set an env var of the tool's name
+    /// in uppercase with hyphens replaced with underscores to the desired
+    /// path. For example, `WASM_BINDGEN=path/to/wasm-bindgen` to override the
+    /// `wasm-bindgen` used, or `WASM_OPT=path/to/wasm-opt` for `wasm-opt`.  or
+    /// the `cache` as the fallback.
+    fn get_tool(&self, tool: &str, version: Option<&str>) -> (PathBuf, bool) {
+        if let Some(s) = std::env::var_os(tool.to_uppercase().replace("-", "_")) {
+            (s.into(), true)
+        } else {
+            let mut cache_path = self.cache().root().join(tool);
+            if let Some(v) = version {
+                cache_path.push(v);
+                cache_path.push(tool)
+            }
+            (cache_path, false)
+        }
+    }
+
+    /// Get the path to our `wasm-opt`, which may be the cache path where it
+    /// should be download to if missing, and whether the path has been
+    /// overridden.
+    ///
+    /// Overridable via setting the `WASM_OPT=path/to/wasm-opt` env var.
+    pub fn get_wasm_opt(&self) -> ToolPath {
+        let (path, is_overridden) = self.get_tool("wasm-opt", None);
+        if !is_overridden {
+            let mut bin = ["bin", "wasm-opt"].iter().collect::<PathBuf>();
+            bin.set_extension(std::env::consts::EXE_EXTENSION);
+
+            let bin_path = path.join(&bin);
+            let mut sub_paths = vec![bin];
+
+            // wasm-opt on MacOS requires a dylib to execute
+            if cfg!(target_os = "macos") {
+                let mut dylib = ["lib", "libbinaryen"].iter().collect::<PathBuf>();
+                dylib.set_extension(std::env::consts::DLL_EXTENSION);
+                sub_paths.push(dylib);
+            }
+
+            ToolPath::Cached {
+                bin_path,
+                base: path,
+                sub_paths,
+            }
+        } else {
+            ToolPath::Overridden(path)
+        }
     }
 }
