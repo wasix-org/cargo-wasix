@@ -16,6 +16,7 @@ mod cache;
 mod config;
 mod internal;
 mod tool_path;
+mod toolchain;
 mod utils;
 
 pub fn main() {
@@ -42,6 +43,7 @@ pub fn main() {
 #[derive(Debug)]
 enum Subcommand {
     Build,
+    BuildToolchain,
     Run,
     Test,
     Bench,
@@ -61,6 +63,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     let subcommand = match subcommand.as_ref().map(|s| s.as_str()) {
         Some("build") => Subcommand::Build,
         Some("build64") => { is64bit = true; Subcommand::Build }
+        Some("build-toolchain") => Subcommand::BuildToolchain,
         Some("run") => Subcommand::Run,
         Some("run64") => { is64bit = true; Subcommand::Run }
         Some("test") => Subcommand::Test,
@@ -88,6 +91,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     cargo.arg("+wasix");
     cargo.arg(match subcommand {
         Subcommand::Build => "build",
+        Subcommand::BuildToolchain => "build-toolchain",
         Subcommand::Check => "check",
         Subcommand::Fix => "fix",
         Subcommand::Test => "test",
@@ -137,6 +141,11 @@ fn rmain(config: &mut Config) -> Result<()> {
         .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
     match subcommand {
+        Subcommand::BuildToolchain => {
+            let opts = toolchain::BuildToochainOptions::from_env()?;
+            toolchain::build_toolchain(opts)?;
+            return Ok(());
+        }
         Subcommand::Run | Subcommand::Bench | Subcommand::Test => {
             if !using_default {
                 // check if the override is either a valid path or command found on $PATH
@@ -182,7 +191,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     if let Ok(dir) = env::var("WASI_SDK_DIR") {
         config.verbose(|| config.status("WASI_SDK_DIR={}", &dir));
     }
-    
+
     // Set some flags for RUST
     env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
     

@@ -10,6 +10,16 @@ use std::path::Path;
 use std::process::{Command, ExitStatus, Output, Stdio};
 use std::{env, fmt};
 
+/// Make sure a binary exists and runs with the given arguments.
+pub fn ensure_binary(command: &str, args: &[&str]) -> Result<(), anyhow::Error> {
+    Command::new(command)
+        .args(args)
+        .stdout(std::process::Stdio::piped())
+        .run_verbose()
+        .with_context(|| format!("Could not find or execute binary: {command}"))?;
+    Ok(())
+}
+
 pub trait CommandExt {
     fn as_command_mut(&mut self) -> &mut Command;
 
@@ -20,6 +30,19 @@ pub trait CommandExt {
             .map_err(|_| anyhow!("process output was not utf-8"))
             .with_context(|| format!("failed to execute {:?}", cmd))?;
         Ok(s)
+    }
+
+    fn run_verbose(&mut self) -> Result<()> {
+        let c = self.as_command_mut();
+        eprintln!(
+            "Running {} {}:",
+            c.get_program().to_string_lossy(),
+            c.get_args()
+                .map(|x| x.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" ")
+        );
+        self.run()
     }
 
     fn run(&mut self) -> Result<()> {
