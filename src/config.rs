@@ -58,7 +58,7 @@ impl Config {
     }
 
     pub fn load_cache(&mut self) -> Result<()> {
-        assert!(!self.cache.is_some());
+        assert!(self.cache.is_none());
         self.cache = Some(Cache::new(Self::cache_dir()?)?);
         Ok(())
     }
@@ -99,12 +99,12 @@ impl Config {
         drop(shell.reset());
         eprintln!(": {}", err);
         for cause in err.chain().skip(1) {
-            eprintln!("");
+            eprintln!();
             drop(shell.set_color(ColorSpec::new().set_bold(true)));
             eprint!("Caused by");
             drop(shell.reset());
             eprintln!(":");
-            eprintln!("    {}", cause.to_string().replace("\n", "\n    "));
+            eprintln!("    {}", cause.to_string().replace('\n', "\n    "));
         }
     }
 
@@ -126,7 +126,7 @@ impl Config {
     /// `wasm-bindgen` used, or `WASM_OPT=path/to/wasm-opt` for `wasm-opt`.  or
     /// the `cache` as the fallback.
     fn get_tool(&self, tool: &str, version: Option<&str>) -> (PathBuf, bool) {
-        if let Some(s) = std::env::var_os(tool.to_uppercase().replace("-", "_")) {
+        if let Some(s) = std::env::var_os(tool.to_uppercase().replace('-', "_")) {
             (s.into(), true)
         } else {
             let mut cache_path = self.cache().root().join(tool);

@@ -58,7 +58,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     let mut no_message_format = false;
     let mut args = env::args_os().skip(2);
     let subcommand = args.next().and_then(|s| s.into_string().ok());
-    let subcommand = match subcommand.as_ref().map(|s| s.as_str()) {
+    let subcommand = match subcommand.as_deref() {
         Some("build") => Subcommand::Build,
         Some("build64") => {
             is64bit = true;
@@ -127,7 +127,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     } else {
         cargo.arg("--target").arg("wasm32-wasmer-wasi");
     }
-    if no_message_format == false {
+    if !no_message_format {
         cargo.arg("--message-format").arg("json-render-diagnostics");
     }
     for arg in args {
@@ -198,7 +198,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     let update_check = internal::UpdateCheck::new(config);
-    toolchain::ensure_toolchain(&config, is64bit)?;
+    toolchain::ensure_toolchain(config, is64bit)?;
 
     // Set the SYSROOT
     if env::var("WASI_SDK_DIR").is_err() {
@@ -216,7 +216,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
 
     // Run the cargo commands
-    let build = execute_cargo(&mut cargo, &config)?;
+    let build = execute_cargo(&mut cargo, config)?;
 
     for (wasm, profile, fresh) in build.wasms.iter() {
         // Cargo will always overwrite our `wasm` above with its own internal
@@ -237,14 +237,14 @@ fn rmain(config: &mut Config) -> Result<()> {
         drop(fs::remove_file(&temporary_rustc));
         fs::rename(wasm, &temporary_rustc)?;
         if !*fresh || !temporary_wasi.exists() {
-            let result = process_wasm(&temporary_wasi, &temporary_rustc, profile, &build, &config);
+            let result = process_wasm(&temporary_wasi, &temporary_rustc, profile, &build, config);
             result.with_context(|| {
                 format!("failed to process wasm at `{}`", temporary_rustc.display())
             })?;
         }
-        drop(fs::remove_file(&wasm));
-        fs::hard_link(&temporary_wasi, &wasm)
-            .or_else(|_| fs::copy(&temporary_wasi, &wasm).map(|_| ()))?;
+        drop(fs::remove_file(wasm));
+        fs::hard_link(&temporary_wasi, wasm)
+            .or_else(|_| fs::copy(&temporary_wasi, wasm).map(|_| ()))?;
     }
 
     for run in build.runs.iter() {
@@ -260,7 +260,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     Ok(())
 }
 
-pub const HELP: &'static str = include_str!("txt/help.txt");
+pub const HELP: &str = include_str!("txt/help.txt");
 
 fn print_help() -> ! {
     println!("{}", HELP);
@@ -392,7 +392,7 @@ fn run_wasm_opt(
     let wasm_opt = config.get_wasm_opt();
 
     let input = tempdir.path().join("input.wasm");
-    fs::write(&input, &bytes)?;
+    fs::write(&input, bytes)?;
     let mut cmd = Command::new(wasm_opt.bin_path());
     cmd.arg(&input);
     cmd.arg(format!("-O{}", profile.opt_level));
@@ -433,12 +433,12 @@ fn execute_cargo(cargo: &mut Command, config: &Config) -> Result<CargoBuild> {
         .read_to_string(&mut json)
         .context("failed to read cargo stdout into a json string")?;
     let status = process.wait().context("failed to wait on `cargo`")?;
-    utils::check_success(&cargo, &status, &[], &[])
+    utils::check_success(cargo, &status, &[], &[])
         .map_err(|e| utils::hide_normal_process_exit(e, config))?;
 
     let mut build = CargoBuild::default();
     for line in json.lines() {
-        if !line.starts_with("{") {
+        if !line.starts_with('{') {
             println!("{}", line);
             continue;
         }
@@ -566,10 +566,10 @@ fn install_wasm_opt(path: &ToolPath, config: &Config) -> Result<()> {
         url.push_str(tag);
         url.push_str("/binaryen-");
         url.push_str(tag);
-        url.push_str("-");
+        url.push('-');
         url.push_str(target);
         url.push_str(".tar.gz");
-        return url;
+        url
     };
 
     let url = if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
@@ -620,7 +620,7 @@ fn download(
 
     // Ok, let's actually do the download
     config.status("Downloading", name);
-    config.verbose(|| config.status("Get", &url));
+    config.verbose(|| config.status("Get", url));
 
     let response = utils::get(url)?;
     (|| -> Result<()> {
@@ -645,9 +645,9 @@ fn download(
             }
         }
 
-        for missing in sub_paths
+        if let Some(missing) = sub_paths
             .iter()
-            .filter(|sub_path| !parent.join(sub_path).exists())
+            .find(|sub_path| !parent.join(sub_path).exists())
         {
             bail!("failed to find {:?} in archive", missing);
         }

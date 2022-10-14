@@ -11,11 +11,7 @@ pub enum ToolPath {
 
 impl ToolPath {
     pub fn is_overridden(&self) -> bool {
-        if let ToolPath::Overridden(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, ToolPath::Overridden(_))
     }
 
     pub fn bin_path(&self) -> &Path {

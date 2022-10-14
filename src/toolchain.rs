@@ -151,23 +151,23 @@ fn prepare_git_repo(
 
     if !path.join(".git").is_dir() {
         Command::new("git")
-            .args(&["clone", source])
-            .arg(&path)
+            .args(["clone", source])
+            .arg(path)
             .run_verbose()?;
     }
     Command::new("git")
-        .args(&["fetch", "origin", tag])
-        .current_dir(&path)
+        .args(["fetch", "origin", tag])
+        .current_dir(path)
         .run_verbose()?;
     Command::new("git")
-        .args(&["reset", "--hard", tag])
-        .current_dir(&path)
+        .args(["reset", "--hard", tag])
+        .current_dir(path)
         .run_verbose()?;
 
     if all_submodules {
         Command::new("git")
-            .args(&["submodule", "update", "--init", "--recursive"])
-            .current_dir(&path)
+            .args(["submodule", "update", "--init", "--recursive"])
+            .current_dir(path)
             .run_verbose()?;
     }
 
@@ -200,7 +200,7 @@ fn build_libc(
 
     let git_tag = git_tag.as_deref().unwrap_or("main");
 
-    std::fs::create_dir_all(&build_root)
+    std::fs::create_dir_all(build_root)
         .with_context(|| format!("Could not create directory: {}", build_root.display()))?;
     let build_dir = build_root.join("wasix-libc");
 
@@ -217,18 +217,18 @@ fn build_libc(
         let archive_path = build_dir.join("llvm.tar.xz");
 
         Command::new("curl")
-            .args(&["-L", "-o"])
+            .args(["-L", "-o"])
             .arg(&archive_path)
             .arg(LLVM_LINUX_SOURCE)
             .run_verbose()?;
 
         eprintln!("Extracting LLVM...");
         Command::new("tar")
-            .args(&["xJf"])
+            .args(["xJf"])
             .arg(&archive_path)
             .arg("-C")
             .arg(&llvm_dir)
-            .args(&["--strip-components", "1"])
+            .args(["--strip-components", "1"])
             .run_verbose()?;
 
         std::fs::remove_file(&archive_path).ok();
@@ -253,7 +253,7 @@ fn build_libc(
 
     eprintln!("Generating headers...");
     Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--manifest-path",
             "tools/wasix-headers/Cargo.toml",
@@ -285,7 +285,7 @@ fn build_libc(
 
     eprintln!("Generating headers...");
     Command::new("cargo")
-        .args(&[
+        .args([
             "run",
             "--manifest-path",
             "tools/wasix-headers/Cargo.toml",
@@ -367,18 +367,18 @@ wasi-root = "../wasix-libc/sysroot64"
 
     // Stage 1.
     let mut cmd = Command::new("python3");
-    cmd.args(&["x.py", "build"]);
+    cmd.args(["x.py", "build"]);
     if let Some(triple) = host_triple {
-        cmd.args(&["--host", triple]);
+        cmd.args(["--host", triple]);
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
     // Stage 2.
     let mut cmd = Command::new("python3");
     cmd.arg(rust_dir.join("x.py"))
-        .args(&["build", "--stage", "2"]);
+        .args(["build", "--stage", "2"]);
     if let Some(triple) = host_triple {
-        cmd.args(&["--host", triple]);
+        cmd.args(["--host", triple]);
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
@@ -517,7 +517,7 @@ fn download_toolchain(target: &str, toolchain_dir: &Path) -> Result<PathBuf, any
 fn rustup_link_wasix_toolchain(dir: &Path) -> Result<(), anyhow::Error> {
     eprintln!("Activating toolchain...");
     Command::new("rustup")
-        .args(&["toolchain", "link", "wasix"])
+        .args(["toolchain", "link", "wasix"])
         .arg(dir)
         .run_verbose()
         .context("Could not link toolchain: rustup not installed?")?;
@@ -585,7 +585,7 @@ pub fn ensure_toolchain(_config: &Config, is64bit: bool) -> Result<(), anyhow::E
     };
 
     // Install the toolchain if its not there
-    if has_wasix_toolchain == false {
+    if !has_wasix_toolchain {
         install_toolchain(
             &Config::toolchain_dir()?,
             &Config::cache_dir()?.join("build"),
@@ -595,7 +595,7 @@ pub fn ensure_toolchain(_config: &Config, is64bit: bool) -> Result<(), anyhow::E
     // Ok we need to actually check since this is perhaps the first time we've
     // ever checked. Let's ask rustc what its sysroot is and see if it has a
     // wasm64-wasi folder.
-    let push_toolchain = std::env::var("RUSTUP_TOOLCHAIN").unwrap_or("".to_string());
+    let push_toolchain = std::env::var("RUSTUP_TOOLCHAIN").unwrap_or_default();
     std::env::set_var("RUSTUP_TOOLCHAIN", "wasix");
     let sysroot = Command::new("rustc")
         .arg("--print")

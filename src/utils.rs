@@ -81,7 +81,7 @@ pub fn check_success(
     }
     Err(ProcessError {
         cmd_desc: format!("{:?}", cmd),
-        status: status.clone(),
+        status: *status,
         stdout: stdout.to_vec(),
         stderr: stderr.to_vec(),
         hidden: false,
@@ -155,12 +155,12 @@ impl fmt::Display for ProcessError {
         write!(f, "\n    status: {}", self.status)?;
         if !self.stdout.is_empty() {
             let stdout = String::from_utf8_lossy(&self.stdout);
-            let stdout = stdout.replace("\n", "\n        ");
+            let stdout = stdout.replace('\n', "\n        ");
             write!(f, "\n    stdout:\n        {}", stdout)?;
         }
         if !self.stderr.is_empty() {
             let stderr = String::from_utf8_lossy(&self.stderr);
-            let stderr = stderr.replace("\n", "\n        ");
+            let stderr = stderr.replace('\n', "\n        ");
             write!(f, "\n    stderr:\n        {}", stderr)?;
         }
         Ok(())
@@ -177,7 +177,7 @@ impl std::error::Error for ProcessError {}
 fn get_http_proxy() -> Option<String> {
     ["http_proxy", "HTTP_PROXY", "https_proxy", "HTTPS_PROXY"]
         .iter()
-        .map(|v| env::var(v))
+        .map(env::var)
         .find(|v| v.is_ok())
         .and_then(|v| v.ok())
 }

@@ -31,10 +31,8 @@ fn update_check(config: &Config) -> Result<()> {
     match update_available()? {
         Some(version) => {
             eprintln!("An update to version {} is available!", version);
-            eprintln!("To upgrade from {} run:", env!("CARGO_PKG_VERSION"));
-            eprintln!("");
-            eprintln!("    cargo install cargo-wasix -f");
-            eprintln!("");
+            eprintln!("To upgrade from {} run:\n", env!("CARGO_PKG_VERSION"));
+            eprintln!("    cargo install cargo-wasix -f\n");
         }
         None => eprintln!("cargo-wasix v{} is up-to-date", env!("CARGO_PKG_VERSION")),
     }
