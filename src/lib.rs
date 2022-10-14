@@ -178,7 +178,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     let update_check = internal::UpdateCheck::new(config);
-    install_wasix_target(&config, is64bit)?;
+    toolchain::ensure_toolchain(&config, is64bit)?;
 
     // Set the SYSROOT
     if env::var("WASI_SDK_DIR").is_err() {
@@ -241,80 +241,10 @@ fn rmain(config: &mut Config) -> Result<()> {
 }
 
 pub const HELP: &'static str = include_str!("txt/help.txt");
-pub const INSTALL: &'static str = include_str!("txt/install-wasix.sh");
 
 fn print_help() -> ! {
     println!("{}", HELP);
     std::process::exit(0);
-}
-
-/// Installs the `wasm64-wasi` target into our global cache.
-fn install_wasix_target(config: &Config, is64bit: bool) -> Result<()>
-{
-    // rustup is not itself synchronized across processes so at least attempt to
-    // synchronize our own calls. This may not work and if it doesn't we tried,
-    // this is largely opportunistic anyway.
-    let _lock = utils::flock(&config.cache().root().join("rustup-lock"));
-
-    // First check if the toolchain is present
-    let toolchains = Command::new("rustup")
-        .arg("toolchain")
-        .arg("list")
-        .capture_stdout()
-        .ok();
-    let has_wasix_toolchain = if let Some(toolchains) = toolchains {
-        toolchains.lines().any(|a| a == "wasix")
-    } else {
-        false
-    };
-    
-    // Install the toolchain if its not there
-    if has_wasix_toolchain == false
-    {
-        // Read WASIX installation script and run it with SH
-        let mut cmd = Command::new("bash")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .spawn()?;
-        let mut outstdin = cmd.stdin.take().unwrap();
-        let mut writer = BufWriter::new(&mut outstdin);
-        writer.write_all(INSTALL.as_bytes())?;
-        drop(writer);
-        drop(outstdin);
-
-        cmd.wait()?;
-    }
-
-    // Ok we need to actually check since this is perhaps the first time we've
-    // ever checked. Let's ask rustc what its sysroot is and see if it has a
-    // wasm64-wasi folder.
-    let push_toolchain = env::var("RUSTUP_TOOLCHAIN").unwrap_or("".to_string());
-    env::set_var("RUSTUP_TOOLCHAIN", "wasix");
-    let sysroot = Command::new("rustc")
-        .arg("--print")
-        .arg("sysroot")
-        .capture_stdout()
-        .ok();
-    if let Some(sysroot) = sysroot {
-        let sysroot = Path::new(sysroot.trim());
-        let lib_name = if is64bit {
-            "lib/rustlib/wasm64-wasmer-wasi"
-        } else {
-            "lib/rustlib/wasm32-wasmer-wasi"
-        };
-        if sysroot.join(lib_name).exists() {
-            env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
-            return Ok(());
-        }
-    }
-    env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
-    
-    bail!(
-        "failed to find the `wasm64-wasmer-wasi` target installed, and rustup \
-        is also not detected, you'll need to be sure to install the \
-        `wasm64-wasi` target before using this command"
-    );
 }
 
 #[derive(Default, Debug)]
