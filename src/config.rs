@@ -23,9 +23,43 @@ impl Config {
         }
     }
 
+    pub fn data_dir() -> Result<PathBuf, anyhow::Error> {
+        let dir = if let Ok(dir) = std::env::var("WASIX_DATA_DIR") {
+            dir.into()
+        } else if let Some(root) = dirs::data_dir() {
+            root.join("cargo-wasix")
+        } else if let Some(home) = dirs::home_dir() {
+            home.join(".cargo-wasix")
+        } else {
+            anyhow::bail!("Could not determine cargo-wasix data dir. set WASIX_DATA_DIR env var");
+        };
+
+        Ok(dir)
+    }
+
+    pub fn cache_dir() -> Result<PathBuf, anyhow::Error> {
+        let dir = if let Ok(dir) = std::env::var("WASIX_CACHE_DIR") {
+            dir.into()
+        } else if let Some(root) = dirs::cache_dir() {
+            root.join("cargo-wasix")
+        } else if let Ok(data) = Self::data_dir() {
+            data.join("cache")
+        } else if let Some(home) = dirs::home_dir() {
+            home.join(".cargo-wasix").join("cache")
+        } else {
+            anyhow::bail!("Could not determine cargo-wasix cache dir. set WASIX_CACHE_DIR env var");
+        };
+
+        Ok(dir)
+    }
+
+    pub fn toolchain_dir() -> Result<PathBuf, anyhow::Error> {
+        Self::data_dir().map(|d| d.join("toolchains"))
+    }
+
     pub fn load_cache(&mut self) -> Result<()> {
         assert!(!self.cache.is_some());
-        self.cache = Some(Cache::new()?);
+        self.cache = Some(Cache::new(Self::cache_dir()?)?);
         Ok(())
     }
 
