@@ -2,15 +2,13 @@ use crate::cache::Cache;
 use crate::config::Config;
 use crate::utils::CommandExt;
 use anyhow::{bail, Context, Result};
-use tool_path::ToolPath;
 use std::env;
 use std::fs;
 use std::io;
-use std::io::BufWriter;
-use std::io::Write;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use tool_path::ToolPath;
 
 mod cache;
 mod config;
@@ -62,18 +60,40 @@ fn rmain(config: &mut Config) -> Result<()> {
     let subcommand = args.next().and_then(|s| s.into_string().ok());
     let subcommand = match subcommand.as_ref().map(|s| s.as_str()) {
         Some("build") => Subcommand::Build,
-        Some("build64") => { is64bit = true; Subcommand::Build }
+        Some("build64") => {
+            is64bit = true;
+            Subcommand::Build
+        }
         Some("build-toolchain") => Subcommand::BuildToolchain,
         Some("run") => Subcommand::Run,
-        Some("run64") => { is64bit = true; Subcommand::Run }
+        Some("run64") => {
+            is64bit = true;
+            Subcommand::Run
+        }
         Some("test") => Subcommand::Test,
-        Some("test64") => { is64bit = true; Subcommand::Test },
+        Some("test64") => {
+            is64bit = true;
+            Subcommand::Test
+        }
         Some("bench") => Subcommand::Bench,
-        Some("bench64") => { is64bit = true; Subcommand::Bench },
+        Some("bench64") => {
+            is64bit = true;
+            Subcommand::Bench
+        }
         Some("check") => Subcommand::Check,
-        Some("check64") => { is64bit = true; Subcommand::Check },
-        Some("tree") => { no_message_format = true; Subcommand::Tree },
-        Some("tree64") => { is64bit = true; no_message_format = true; Subcommand::Tree },
+        Some("check64") => {
+            is64bit = true;
+            Subcommand::Check
+        }
+        Some("tree") => {
+            no_message_format = true;
+            Subcommand::Tree
+        }
+        Some("tree64") => {
+            is64bit = true;
+            no_message_format = true;
+            Subcommand::Tree
+        }
         Some("fix") => Subcommand::Fix,
         Some("self") => return internal::main(&args.collect::<Vec<_>>(), config),
         Some("version") | Some("-V") | Some("--version") => {
@@ -194,7 +214,7 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // Set some flags for RUST
     env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
-    
+
     // Run the cargo commands
     let build = execute_cargo(&mut cargo, &config)?;
 
@@ -385,7 +405,7 @@ fn run_wasm_opt(
     } else {
         cmd.arg("--strip-debug");
     }
-    
+
     run_or_download(
         wasm_opt.bin_path(),
         wasm_opt.is_overridden(),

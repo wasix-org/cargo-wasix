@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{Cache, tool_path::ToolPath};
+use crate::{tool_path::ToolPath, Cache};
 use anyhow::Result;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
