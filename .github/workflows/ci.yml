@@ -1,0 +1,40 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: 'clippy,rustfmt'
+      - name: Check formatting (rustfmt)
+        shell: bash
+        run: |
+          cargo fmt --check
+      - name: clippy
+        shell: bash
+        run: |
+          cargo clippy
+
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: test
+        shell: bash
+        run: |
+          cargo test --all-features
+      - name: build
+        shell: bash
+        run: |
+          cargo build --release
