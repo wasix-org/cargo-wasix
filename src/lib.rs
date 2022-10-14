@@ -122,11 +122,12 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // TODO: figure out when these flags are already passed to `cargo` and skip
     // passing them ourselves.
-    if is64bit {
-        cargo.arg("--target").arg("wasm64-wasmer-wasi");
+    let target = if is64bit {
+        "wasm64-wasmer-wasi"
     } else {
-        cargo.arg("--target").arg("wasm32-wasmer-wasi");
-    }
+        "wasm32-wasmer-wasi"
+    };
+    cargo.arg("--target").arg(target);
     if !no_message_format {
         cargo.arg("--message-format").arg("json-render-diagnostics");
     }
@@ -139,6 +140,11 @@ fn rmain(config: &mut Config) -> Result<()> {
 
         cargo.arg(arg);
     }
+
+    let runner_env_var = format!(
+        "CARGO_TARGET_{}_RUNNER",
+        target.to_uppercase().replace('-', "_")
+    );
 
     // If Cargo actually executes a wasm file, we don't want it to. We need to
     // postprocess wasm files (wasm-opt, wasm-bindgen, etc). As a result we will
@@ -156,7 +162,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     // present. We first check the CARGO_TARGET_WASM32_WASIX_RUNNER environement
     // variable for a user-supplied runtime (path or executable) and use the
     // default, namely `wasmer`, if it is not set.
-    let (wasix_runner, using_default) = env::var("CARGO_TARGET_WASM32_WASIX_RUNNER")
+    let (wasix_runner, using_default) = env::var(&runner_env_var)
         .map(|runner_override| (runner_override, false))
         .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
@@ -171,9 +177,9 @@ fn rmain(config: &mut Config) -> Result<()> {
                 // check if the override is either a valid path or command found on $PATH
                 if !(Path::new(&wasix_runner).exists() || which::which(&wasix_runner).is_ok()) {
                     bail!(
-                        "failed to find `{}` (specified by $CARGO_TARGET_WASM32_WASIX_RUNNER) \
+                        "failed to find `{}` (specified by ${runner_env_var}) \
                          on the filesytem or in $PATH, you'll want to fix the path or unset \
-                         the $CARGO_TARGET_WASM32_WASIX_RUNNER environment variable before \
+                         the ${runner_env_var} environment variable before \
                          running this command\n",
                         &wasix_runner
                     );
@@ -191,7 +197,7 @@ fn rmain(config: &mut Config) -> Result<()> {
                 bail!("{}", msg);
             }
             cargo.env("__CARGO_WASIX_RUNNER_SHIM", "1");
-            cargo.env("CARGO_TARGET_WASM32_WASIX_RUNNER", env::current_exe()?);
+            cargo.env(runner_env_var, env::current_exe()?);
         }
 
         Subcommand::Build | Subcommand::Check | Subcommand::Tree | Subcommand::Fix => {}
@@ -249,8 +255,13 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     for run in build.runs.iter() {
         config.status("Running", &format!("`{}`", run.join(" ")));
-        Command::new(&wasix_runner)
-            .arg("--")
+        let mut cmd = Command::new(&wasix_runner);
+
+        if wasix_runner == "wasmer" {
+            cmd.arg("--enable-threads");
+        }
+
+        cmd.arg("--")
             .args(run.iter())
             .run()
             .map_err(|e| utils::hide_normal_process_exit(e, config))?;
