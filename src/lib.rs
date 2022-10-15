@@ -203,8 +203,15 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Build | Subcommand::Check | Subcommand::Tree | Subcommand::Fix => {}
     }
 
-    let update_check = internal::UpdateCheck::new(config);
-    toolchain::ensure_toolchain(config, is64bit)?;
+    let is_offline =
+        std::env::var("CARGO_WASIX_OFFLINE").map_or(false, |v| v == "1" || v == "true");
+
+    let update_check_opt = if is_offline {
+        Some(internal::UpdateCheck::new(config))
+    } else {
+        None
+    };
+    toolchain::ensure_toolchain(config, is64bit, is_offline)?;
 
     // Set the SYSROOT
     if env::var("WASI_SDK_DIR").is_err() {
@@ -267,7 +274,9 @@ fn rmain(config: &mut Config) -> Result<()> {
             .map_err(|e| utils::hide_normal_process_exit(e, config))?;
     }
 
-    update_check.print();
+    if let Some(check) = update_check_opt {
+        check.print();
+    }
     Ok(())
 }
 

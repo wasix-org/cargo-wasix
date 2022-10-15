@@ -75,6 +75,7 @@ pub fn build_toolchain(
     options: BuildToochainOptions,
 ) -> Result<Option<RustBuildOutput>, anyhow::Error> {
     eprintln!("Building the wasix toolchain...");
+    eprintln!("WARNING: this could take a long time and use a lot of disk space!");
 
     if ensure_binary("apt-get", &["--version"]).is_ok() {
         setup_apt()?;
@@ -96,18 +97,19 @@ pub fn build_toolchain(
         eprintln!("Skipping libc build!");
     }
 
-    if options.build_rust {
-        let out = build_rust(
-            &options.root,
-            None,
-            options.rust_host_triple.as_deref(),
-            options.update_repos,
-        )?;
-        Ok(Some(out))
-    } else {
-        eprintln!("Skipping rustc build!");
-        Ok(None)
+    if !options.build_rust {
+        return Ok(None);
     }
+
+    let out = build_rust(
+        &options.root,
+        None,
+        options.rust_host_triple.as_deref(),
+        options.update_repos,
+    )?;
+
+    rustup_link_wasix_toolchain(&out.toolchain_dir)?;
+    Ok(Some(out))
 }
 
 /// Install basic required packages on Debian based systems.
@@ -529,34 +531,23 @@ fn rustup_link_wasix_toolchain(dir: &Path) -> Result<(), anyhow::Error> {
 
 /// Tries to download a pre-built toolchain if possible, and builds the
 /// toolchain locally otherwise.
-fn install_toolchain(toolchain_dir: &Path, build_dir: &Path) -> Result<(), anyhow::Error> {
+fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<(), anyhow::Error> {
     if let Some(target) = guess_host_target() {
         match download_toolchain(target, toolchain_dir) {
             Ok(path) => {
                 rustup_link_wasix_toolchain(&path)?;
-                return Ok(());
+                Ok(())
             }
             Err(err) => {
                 eprintln!("Could not download pre-built toolchain: {err:?}");
+                Err(err.context("Download of pre-built toolchain failed"))
             }
         }
+    } else {
+        Err(anyhow::anyhow!(
+            "The WASIX toolchain is not available for download on this platform. Build it yourself with: 'cargo wasix build-toolchain'"
+        ))
     }
-
-    eprintln!("Could not install pre-built toolchain!");
-    eprintln!("Building local toolchain...");
-    eprintln!("WARNING: this could take a long time and use a lot of disk space!");
-
-    let rust = build_toolchain(BuildToochainOptions {
-        root: build_dir.to_owned(),
-        build_libc: true,
-        build_rust: true,
-        rust_host_triple: None,
-        update_repos: true,
-    })?
-    .unwrap();
-    rustup_link_wasix_toolchain(&rust.toolchain_dir)?;
-
-    Ok(())
 }
 
 /// Makes sure that the wasix toolchain is available.
@@ -565,31 +556,26 @@ fn install_toolchain(toolchain_dir: &Path, build_dir: &Path) -> Result<(), anyho
 /// locally otherwise.
 ///
 /// Also checks that the toolchain is correctly installed.
-pub fn ensure_toolchain(_config: &Config, is64bit: bool) -> Result<(), anyhow::Error> {
+pub fn ensure_toolchain(
+    _config: &Config,
+    is64bit: bool,
+    is_offline: bool,
+) -> Result<(), anyhow::Error> {
     // rustup is not itself synchronized across processes so at least attempt to
     // synchronize our own calls. This may not work and if it doesn't we tried,
     // this is largely opportunistic anyway.
     let _lock = crate::utils::flock(&Config::data_dir()?.join("rustup-lock"));
 
     // First check if the toolchain is present
-    let toolchains = Command::new("rustup")
+    let has_wasix_toolchain = Command::new("rustup")
         .arg("toolchain")
         .arg("list")
         .capture_stdout()
-        .ok();
-
-    let has_wasix_toolchain = if let Some(toolchains) = toolchains {
-        toolchains.lines().any(|a| a == "wasix")
-    } else {
-        false
-    };
+        .map_or(false, |out| out.lines().any(|a| a == "wasix"));
 
     // Install the toolchain if its not there
-    if !has_wasix_toolchain {
-        install_toolchain(
-            &Config::toolchain_dir()?,
-            &Config::cache_dir()?.join("build"),
-        )?;
+    if !has_wasix_toolchain && !is_offline {
+        install_prebuilt_toolchain(&Config::toolchain_dir()?)?;
     }
 
     // Ok we need to actually check since this is perhaps the first time we've
@@ -616,10 +602,15 @@ pub fn ensure_toolchain(_config: &Config, is64bit: bool) -> Result<(), anyhow::E
     }
     std::env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
 
+    if is_offline {
+        _config.info("Skipped download of prebuilt toolchain. (CARGO_WASIX_OFFLINE is enabled)")
+    }
+
     bail!(
         "failed to find the `wasm64-wasmer-wasi` target installed, and rustup \
         is also not detected, you'll need to be sure to install the \
-        `wasm64-wasi` target before using this command"
+        `wasm{{32/64}}-wasmer-wasi` target before using this command. \
+        Hint: run 'cargo wasix build-toolchain to build locally (might take a long time!)"
     );
 }
 
