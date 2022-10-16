@@ -124,6 +124,8 @@ pub fn hide_normal_process_exit(error: Error, config: &Config) -> Error {
         Err(e) => return e,
     };
     if let Some(code) = error.status.code() {
+        // Allowed because suggestions is less readable...
+        #[allow(clippy::manual_range_contains)]
         if 0 <= code && code < 128 && error.stdout.is_empty() && error.stderr.is_empty() {
             error.hidden = true;
         }
