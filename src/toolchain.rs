@@ -457,11 +457,6 @@ struct GithubAsset {
 
 /// Download a pre-built toolchain from Github releases.
 fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBuf, anyhow::Error> {
-    // rustup is not itself synchronized across processes so at least attempt to
-    // synchronize our own calls. This may not work and if it doesn't we tried,
-    // this is largely opportunistic anyway.
-    let _lock = crate::utils::flock(&Config::data_dir()?.join("rustup-lock"));
-
     let client = reqwest::blocking::Client::builder()
         .user_agent("cargo-wasix")
         .build()?;
@@ -601,7 +596,7 @@ pub fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<RustupToolchai
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RustupToolchain {
     pub name: String,
     pub path: PathBuf,
@@ -693,10 +688,7 @@ pub fn ensure_toolchain(
     is64bit: bool,
     is_offline: bool,
 ) -> Result<RustupToolchain, anyhow::Error> {
-    // rustup is not itself synchronized across processes so at least attempt to
-    // synchronize our own calls. This may not work and if it doesn't we tried,
-    // this is largely opportunistic anyway.
-    let _lock = crate::utils::flock(&Config::data_dir()?.join("rustup-lock"));
+    let _lock = Config::acquire_lock()?;
 
     let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
         chain

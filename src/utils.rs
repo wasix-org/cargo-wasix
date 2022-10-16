@@ -89,8 +89,15 @@ pub fn check_success(
     .into())
 }
 
-pub fn flock(path: &Path) -> Result<impl Drop> {
-    struct Lock(File);
+pub struct FileLock(File);
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        drop(self.0.unlock());
+    }
+}
+
+pub fn flock(path: &Path) -> Result<FileLock> {
     let parent = path.parent().unwrap();
     fs::create_dir_all(parent)
         .context(format!("failed to create directory `{}`", parent.display()))?;
@@ -100,13 +107,7 @@ pub fn flock(path: &Path) -> Result<impl Drop> {
         .write(true)
         .open(path)?;
     file.lock_exclusive()?;
-    return Ok(Lock(file));
-
-    impl Drop for Lock {
-        fn drop(&mut self) {
-            drop(self.0.unlock());
-        }
-    }
+    return Ok(FileLock(file));
 }
 
 /// If `Error` is a `ProcessError` and it looks like a "normal exit", then it

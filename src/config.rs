@@ -57,6 +57,14 @@ impl Config {
         Self::data_dir().map(|d| d.join("toolchains"))
     }
 
+    fn lockfile_path() -> Result<PathBuf, anyhow::Error> {
+        Self::data_dir().map(|p| p.join("rustup-lock"))
+    }
+
+    pub fn acquire_lock() -> Result<crate::utils::FileLock, anyhow::Error> {
+        crate::utils::flock(&Self::lockfile_path()?)
+    }
+
     pub fn load_cache(&mut self) -> Result<()> {
         assert!(self.cache.is_none());
         self.cache = Some(Cache::new(Self::cache_dir()?)?);
