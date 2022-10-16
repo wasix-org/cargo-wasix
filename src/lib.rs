@@ -42,6 +42,7 @@ pub fn main() {
 enum Subcommand {
     Build,
     BuildToolchain,
+    DownloadToolchain,
     Run,
     Test,
     Bench,
@@ -65,6 +66,7 @@ fn rmain(config: &mut Config) -> Result<()> {
             Subcommand::Build
         }
         Some("build-toolchain") => Subcommand::BuildToolchain,
+        Some("download-toolchain") => Subcommand::DownloadToolchain,
         Some("run") => Subcommand::Run,
         Some("run64") => {
             is64bit = true;
@@ -112,6 +114,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     cargo.arg(match subcommand {
         Subcommand::Build => "build",
         Subcommand::BuildToolchain => "build-toolchain",
+        Subcommand::DownloadToolchain => "download-toolchain",
         Subcommand::Check => "check",
         Subcommand::Fix => "fix",
         Subcommand::Test => "test",
@@ -167,6 +170,15 @@ fn rmain(config: &mut Config) -> Result<()> {
         .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
     match subcommand {
+        Subcommand::DownloadToolchain => {
+            let chain = toolchain::install_prebuilt_toolchain(&Config::toolchain_dir()?)?;
+            config.info(&format!(
+                "Toolchain {} downloaded and installed to path {}.\nThe wasix toolchain is now ready to use.",
+                chain.name,
+                chain.path.display(),
+            ));
+            return Ok(());
+        }
         Subcommand::BuildToolchain => {
             let opts = toolchain::BuildToochainOptions::from_env()?;
             toolchain::build_toolchain(opts)?;
@@ -203,6 +215,7 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Build | Subcommand::Check | Subcommand::Tree | Subcommand::Fix => {}
     }
 
+    // Offline env var disables toolchain downloads and update checks.
     let is_offline =
         std::env::var("CARGO_WASIX_OFFLINE").map_or(false, |v| v == "1" || v == "true");
 
@@ -211,25 +224,26 @@ fn rmain(config: &mut Config) -> Result<()> {
     } else {
         None
     };
-    toolchain::ensure_toolchain(config, is64bit, is_offline)?;
+    let toolchain = toolchain::ensure_toolchain(config, is64bit, is_offline)?;
 
-    // Set the SYSROOT
-    if env::var("WASI_SDK_DIR").is_err() {
-        if is64bit {
-            env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot64/");
-        } else {
-            env::set_var("WASI_SDK_DIR", "/opt/wasix-libc/sysroot32/");
-        }
-    }
-    if let Ok(dir) = env::var("WASI_SDK_DIR") {
-        config.verbose(|| config.status("WASI_SDK_DIR={}", &dir));
+    std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name);
+
+    if let Ok(dir) = std::env::var("WASI_SDK_DIR") {
+        config.verbose(|| config.status("WASI_SDK_DIR=", &dir));
+    } else if let Some(sysroot) = toolchain.sysroot_dir(is64bit) {
+        std::env::set_var("WASI_SDK_DIR", &sysroot);
+        config.verbose(|| config.status("WASI_SDK_DIR={}", &sysroot.display().to_string()));
     }
 
-    // Set some flags for RUST
-    env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
+    // Set some flags for rustc (only if RUSTFLAGS is not already set)
+    if std::env::var("RUSTFLAGS").is_err() {
+        env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
+    }
 
     // Run the cargo commands
     let build = execute_cargo(&mut cargo, config)?;
+
+    config.info("Post-processing WebAssembly files");
 
     for (wasm, profile, fresh) in build.wasms.iter() {
         // Cargo will always overwrite our `wasm` above with its own internal
@@ -367,7 +381,8 @@ fn process_wasm(
         .generate_name_section(build.enable_name_section(profile))
         .generate_producers_section(build.enable_producers_section(profile))
         .strict_validate(false)
-        .parse_file(temp)?;
+        .parse_file(temp)
+        .context("could not parse wasm")?;
 
     // Demangle everything so it's got a more readable name since there's
     // no real need to mangle the symbols in wasm.

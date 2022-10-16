@@ -1,3 +1,10 @@
+//! Implements functionality for downloading/installing or building the
+//! wasix toolchain (mainly RUSTC).
+//!
+//! Mainly:
+//! * Download/install pre-built toolchains.
+//! * Build the whole toolchain
+
 use std::{
     path::{Path, PathBuf},
     process::Command,
@@ -20,6 +27,8 @@ const RUST_BRANCH: &str = "wasix";
 
 /// Download url for LLVM + clang.
 const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
+
+const RUSTUP_TOOLCHAIN_NAME: &str = "wasix";
 
 /// Options for a toolchain build.
 pub struct BuildToochainOptions {
@@ -108,7 +117,8 @@ pub fn build_toolchain(
         options.update_repos,
     )?;
 
-    rustup_link_wasix_toolchain(&out.toolchain_dir)?;
+    RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &out.toolchain_dir)?;
+
     Ok(Some(out))
 }
 
@@ -189,7 +199,6 @@ fn build_libc(
 
 /// Build the wasix-libc sysroot.
 // Currently only works on Linux.
-// Mac OS support is easy to add.
 #[cfg(target_os = "linux")]
 fn build_libc(
     build_root: &Path,
@@ -320,7 +329,7 @@ fn build_libc(
     Ok(())
 }
 
-/// Info for a successful rust toolchain build.
+/// Output info of a successful rust toolchain build.
 pub struct RustBuildOutput {
     pub target: String,
     pub toolchain_dir: PathBuf,
@@ -343,7 +352,7 @@ fn build_rust(
     let config = r#"
 changelog-seen = 2
 
-# NOTE: can't enable because using the cached llvm prevents building lld,
+# NOTE: can't enable because using the cached llvm prevents building rust-lld,
 # which is required for the toolchain to work.
 #[llvm]
 #download-ci-llvm = true
@@ -423,6 +432,9 @@ fn guess_host_target() -> Option<&'static str> {
     #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
     return Some("x86_64-apple-darwin");
 
+    #[cfg(all(target_arch = "aarch64", target_os = "macos"))]
+    return Some("aarch64-apple-darwin");
+
     #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
     return Some("x86_64-apple-darwin");
 
@@ -444,7 +456,12 @@ struct GithubAsset {
 }
 
 /// Download a pre-built toolchain from Github releases.
-fn download_toolchain(target: &str, toolchain_dir: &Path) -> Result<PathBuf, anyhow::Error> {
+fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBuf, anyhow::Error> {
+    // rustup is not itself synchronized across processes so at least attempt to
+    // synchronize our own calls. This may not work and if it doesn't we tried,
+    // this is largely opportunistic anyway.
+    let _lock = crate::utils::flock(&Config::data_dir()?.join("rustup-lock"));
+
     let client = reqwest::blocking::Client::builder()
         .user_agent("cargo-wasix")
         .build()?;
@@ -462,11 +479,11 @@ fn download_toolchain(target: &str, toolchain_dir: &Path) -> Result<PathBuf, any
         .context("Could not deserialize release info")?;
 
     // Try to find the asset for the wanted target triple.
-    let asset_name = format!("rust-toolchain-{target}.tar.gz");
-    let asset = release
+    let rust_asset_name = format!("rust-toolchain-{target}.tar.gz");
+    let rust_asset = release
         .assets
         .iter()
-        .find(|asset| asset.name == asset_name)
+        .find(|asset| asset.name == rust_asset_name)
         .with_context(|| {
             format!(
                 "Release {} does not have a prebuilt toolchain for host {}",
@@ -474,13 +491,34 @@ fn download_toolchain(target: &str, toolchain_dir: &Path) -> Result<PathBuf, any
             )
         })?;
 
-    // Download.
+    // Find sysroot asset.
+    let sysroot_asset = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == "wasix-libc.tar.gz")
+        .with_context(|| {
+            format!(
+                "Release {} does not have the sysroot asset",
+                release.tag_name,
+            )
+        })?;
+
+    let toolchain_dir = toolchains_root_dir.join(format!("{target}_{}", release.tag_name));
+    if toolchain_dir.is_dir() {
+        eprintln!(
+            "Toolchain path {} already exists - deleting existing files!",
+            toolchain_dir.display()
+        );
+        std::fs::remove_dir_all(&toolchain_dir)?;
+    }
+
+    // Download and extract sysroot.
     eprintln!(
-        "Downloading release from url '{}'...",
-        &asset.browser_download_url
+        "Downloading sysroot from url '{}'...",
+        &sysroot_asset.browser_download_url
     );
     let res = client
-        .get(&asset.browser_download_url)
+        .get(&sysroot_asset.browser_download_url)
         .send()?
         .error_for_status()?;
 
@@ -488,16 +526,44 @@ fn download_toolchain(target: &str, toolchain_dir: &Path) -> Result<PathBuf, any
     let decoder = flate2::read::GzDecoder::new(res);
     let mut archive = tar::Archive::new(decoder);
 
-    let out_dir = toolchain_dir.join(format!("{target}_{}", release.tag_name));
+    let out_dir = toolchain_dir.join("sysroot");
     archive.unpack(&out_dir)?;
+
+    // The archive contains a redundant additional directory. Strip it.
+    let wrapper = out_dir.join("wasix-libc");
+    if wrapper.is_dir() {
+        std::fs::rename(wrapper.join("sysroot32"), out_dir.join("sysroot32"))
+            .context("Invalid/missing libc sysroot directory")?;
+        std::fs::rename(wrapper.join("sysroot64"), out_dir.join("sysroot64"))
+            .context("Invalid/missing libc sysroot directory")?;
+
+        std::fs::remove_dir_all(wrapper).context("Could not delete intermediate directory")?;
+    }
+
+    // Download.
+    eprintln!(
+        "Downloading Rust toolchain from url '{}'...",
+        &rust_asset.browser_download_url
+    );
+    let res = client
+        .get(&rust_asset.browser_download_url)
+        .send()?
+        .error_for_status()?;
+
+    eprintln!("Extracting...");
+    let decoder = flate2::read::GzDecoder::new(res);
+    let mut archive = tar::Archive::new(decoder);
+
+    let rust_dir = toolchain_dir.join("rust");
+    archive.unpack(&rust_dir)?;
 
     // Ensure permissions.
     #[cfg(target_family = "unix")]
     {
         use std::os::unix::fs::PermissionsExt;
 
-        let iter1 = std::fs::read_dir(out_dir.join("bin"))?;
-        let iter2 = std::fs::read_dir(out_dir.join(format!("lib/rustlib/{target}/bin")))?;
+        let iter1 = std::fs::read_dir(rust_dir.join("bin"))?;
+        let iter2 = std::fs::read_dir(rust_dir.join(format!("lib/rustlib/{target}/bin")))?;
 
         // Make sure the binaries can be executed.
         for res in iter1.chain(iter2) {
@@ -510,34 +576,19 @@ fn download_toolchain(target: &str, toolchain_dir: &Path) -> Result<PathBuf, any
         }
     }
 
-    eprintln!("Downloaded toolchain {} to {}", target, out_dir.display());
+    eprintln!("Downloaded toolchain {} to {}", target, rust_dir.display());
 
-    Ok(out_dir)
-}
-
-/// Link the "wasix" toolchain to a local directory via rustup.
-fn rustup_link_wasix_toolchain(dir: &Path) -> Result<(), anyhow::Error> {
-    eprintln!("Activating toolchain...");
-    Command::new("rustup")
-        .args(["toolchain", "link", "wasix"])
-        .arg(dir)
-        .run_verbose()
-        .context("Could not link toolchain: rustup not installed?")?;
-
-    eprintln!("wasix toolchain was linked and is now available!");
-
-    Ok(())
+    Ok(toolchain_dir)
 }
 
 /// Tries to download a pre-built toolchain if possible, and builds the
 /// toolchain locally otherwise.
-fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<(), anyhow::Error> {
+///
+/// Returns the path to the toolchain.
+pub fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<RustupToolchain, anyhow::Error> {
     if let Some(target) = guess_host_target() {
         match download_toolchain(target, toolchain_dir) {
-            Ok(path) => {
-                rustup_link_wasix_toolchain(&path)?;
-                Ok(())
-            }
+            Ok(path) => RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &path.join("rust")),
             Err(err) => {
                 eprintln!("Could not download pre-built toolchain: {err:?}");
                 Err(err.context("Download of pre-built toolchain failed"))
@@ -550,68 +601,141 @@ fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<(), anyhow::Error>
     }
 }
 
+#[derive(Debug)]
+pub struct RustupToolchain {
+    pub name: String,
+    pub path: PathBuf,
+}
+
+impl RustupToolchain {
+    /// Verify if the "wasix" toolchain is present in rustup.
+    ///
+    /// Returns the path to the toolchain.
+    fn find_by_name(name: &str) -> Result<Option<Self>, anyhow::Error> {
+        let out = Command::new("rustup")
+            .args(["toolchain", "list", "--verbose"])
+            .capture_stdout()?;
+        let path_raw = out
+            .lines()
+            .find(|line| line.trim().starts_with(name))
+            .and_then(|line| line.split_whitespace().last());
+        if let Some(path) = path_raw {
+            Ok(Some(Self {
+                name: name.to_string(),
+                path: path.into(),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Link the "wasix" toolchain to a local directory via rustup.
+    fn link(name: &str, dir: &Path) -> Result<Self, anyhow::Error> {
+        eprintln!(
+            "Activating rustup toolchain {} at {}...",
+            name,
+            dir.display()
+        );
+
+        // Small sanity check.
+        let rustc_path = dir.join("bin/rustc");
+        if !rustc_path.is_file() {
+            bail!(
+                "Invalid toolchain directory: rustc executable not found at {}",
+                rustc_path.display()
+            );
+        }
+
+        // If already present, unlink first.
+        // This is required because otherwise rustup can get in a buggy state.
+        if Self::find_by_name(name)?.is_some() {
+            Command::new("rustup")
+                .args(["toolchain", "remove", name])
+                .run()
+                .context("Could not remove wasix toolchain")?;
+        }
+
+        Command::new("rustup")
+            .args(["toolchain", "link", name])
+            .arg(dir)
+            .run_verbose()
+            .context("Could not link toolchain: rustup not installed?")?;
+
+        eprintln!("rustup toolchain {name} was linked and is now available!");
+
+        Ok(Self {
+            name: name.to_string(),
+            path: dir.into(),
+        })
+    }
+
+    pub fn sysroot_dir(&self, is64bit: bool) -> Option<PathBuf> {
+        let size = if is64bit { 64 } else { 32 };
+        let path = self.path.parent()?.join(format!("sysroot{size}"));
+        if path.is_dir() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+}
+
 /// Makes sure that the wasix toolchain is available.
 ///
 /// Tries to download a pre-built toolchain if possible, and builds the toolchain
 /// locally otherwise.
 ///
 /// Also checks that the toolchain is correctly installed.
+///
+/// Returns the path to the toolchain.
 pub fn ensure_toolchain(
     _config: &Config,
     is64bit: bool,
     is_offline: bool,
-) -> Result<(), anyhow::Error> {
+) -> Result<RustupToolchain, anyhow::Error> {
     // rustup is not itself synchronized across processes so at least attempt to
     // synchronize our own calls. This may not work and if it doesn't we tried,
     // this is largely opportunistic anyway.
     let _lock = crate::utils::flock(&Config::data_dir()?.join("rustup-lock"));
 
-    // First check if the toolchain is present
-    let has_wasix_toolchain = Command::new("rustup")
-        .arg("toolchain")
-        .arg("list")
-        .capture_stdout()
-        .map_or(false, |out| out.lines().any(|a| a == "wasix"));
+    let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
+        chain
+    } else if !is_offline {
+        install_prebuilt_toolchain(&Config::toolchain_dir()?)?
+    } else {
+        bail!(
+            r#"
+Could not detect wasix toolchain, and could not install because CARGO_WASIX_OFFLINE is set.
+Run `cargo wasix build-toolchain if you want to build locally.
+WARNING: building takes a long time!"#
+        );
+    };
 
-    // Install the toolchain if its not there
-    if !has_wasix_toolchain && !is_offline {
-        install_prebuilt_toolchain(&Config::toolchain_dir()?)?;
-    }
-
-    // Ok we need to actually check since this is perhaps the first time we've
-    // ever checked. Let's ask rustc what its sysroot is and see if it has a
-    // wasm64-wasi folder.
-    let push_toolchain = std::env::var("RUSTUP_TOOLCHAIN").unwrap_or_default();
-    std::env::set_var("RUSTUP_TOOLCHAIN", "wasix");
-    let sysroot = Command::new("rustc")
+    // Sanity check the toolchain.
+    let rust_sysroot = Command::new("rustc")
+        .arg(format!("+{}", toolchain.name))
         .arg("--print")
         .arg("sysroot")
         .capture_stdout()
-        .ok();
-    if let Some(sysroot) = sysroot {
-        let sysroot = Path::new(sysroot.trim());
-        let lib_name = if is64bit {
-            "lib/rustlib/wasm64-wasmer-wasi"
-        } else {
-            "lib/rustlib/wasm32-wasmer-wasi"
-        };
-        if sysroot.join(lib_name).exists() {
-            std::env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
-            return Ok(());
-        }
-    }
-    std::env::set_var("RUSTUP_TOOLCHAIN", push_toolchain);
+        .map(|out| PathBuf::from(out.trim()))
+        .context("Could not execute rustc")?;
+    assert_eq!(toolchain.path, rust_sysroot);
 
-    if is_offline {
-        _config.info("Skipped download of prebuilt toolchain. (CARGO_WASIX_OFFLINE is enabled)")
+    let lib_name = if is64bit {
+        "lib/rustlib/wasm64-wasmer-wasi"
+    } else {
+        "lib/rustlib/wasm32-wasmer-wasi"
+    };
+    let lib_dir = rust_sysroot.join(lib_name);
+    if !lib_dir.exists() {
+        bail!(
+            "Invalid wasix rustup toolchain {} at {}: {} does not exist",
+            toolchain.name,
+            toolchain.path.display(),
+            lib_dir.display()
+        );
     }
-
-    bail!(
-        "failed to find the `wasm64-wasmer-wasi` target installed, and rustup \
-        is also not detected, you'll need to be sure to install the \
-        `wasm{{32/64}}-wasmer-wasi` target before using this command. \
-        Hint: run 'cargo wasix build-toolchain to build locally (might take a long time!)"
-    );
+    Ok(toolchain)
 }
 
 #[cfg(test)]
@@ -624,10 +748,9 @@ mod tests {
         if tmp_dir.is_dir() {
             std::fs::remove_dir_all(&tmp_dir).unwrap_or_default();
         }
-        let dir = download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir).unwrap();
-
+        let root = download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir).unwrap();
+        let dir = root.join("rust");
         assert!(dir.join("bin").join("rustc").is_file());
-
         std::fs::remove_dir_all(&tmp_dir).ok();
     }
 }
