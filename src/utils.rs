@@ -211,3 +211,59 @@ pub fn get(url: &str) -> Result<Response> {
     }
     Ok(response)
 }
+
+pub fn copy_path(
+    src: &Path,
+    target: &Path,
+    ignore_existing: bool,
+    verbose: bool,
+) -> Result<(), anyhow::Error> {
+    let meta = src
+        .metadata()
+        .with_context(|| format!("Could not determine metadata for path '{}'", src.display()))?;
+    if meta.is_file() {
+        if target.is_file() {
+            if ignore_existing {
+                Ok(())
+            } else {
+                bail!(
+                    "Could not copy from '{}' to '{}': destination already exists",
+                    src.display(),
+                    target.display()
+                );
+            }
+        } else {
+            if let Some(parent) = target.parent() {
+                std::fs::create_dir_all(parent)
+                    .with_context(|| format!("Could not create directory '{}'", parent.display()))?;
+            }
+            std::fs::copy(src, target).with_context(|| {
+                format!(
+                    "Could not copy file from '{}' to '{}'",
+                    src.display(),
+                    target.display()
+                )
+            })?;
+            if verbose {
+                eprintln!("Copied '{}' to '{}'", src.display(), target.display());
+            }
+            Ok(())
+        }
+    } else if meta.is_dir() {
+        let iter = std::fs::read_dir(src)
+            .with_context(|| format!("Could not list directory '{}'", src.display()))?;
+        for res in iter {
+            let entry = res?;
+            copy_path(
+                &entry.path(),
+                &target.join(entry.file_name()),
+                ignore_existing,
+                verbose,
+            )?;
+        }
+
+        Ok(())
+    } else {
+        Ok(())
+    }
+}
