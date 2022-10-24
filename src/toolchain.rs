@@ -8,7 +8,6 @@
 use std::{
     path::{Path, PathBuf},
     process::Command,
-    thread::available_parallelism,
 };
 
 use anyhow::{bail, Context};
@@ -18,15 +17,10 @@ use crate::{
     utils::{ensure_binary, CommandExt},
 };
 
-const LIBC_REPO: &str = "https://github.com/wasmerio/wasix-libc.git";
-
 /// Custom rust repository.
 const RUST_REPO: &str = "https://github.com/wasmerio/rust.git";
 /// Branch to use in the custom Rust repo.
 const RUST_BRANCH: &str = "wasix";
-
-/// Download url for LLVM + clang.
-const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
 
 const RUSTUP_TOOLCHAIN_NAME: &str = "wasix";
 
@@ -205,7 +199,12 @@ fn build_libc(
     git_tag: Option<String>,
     update_repo: bool,
 ) -> Result<(), anyhow::Error> {
+    const LIBC_REPO: &str = "https://github.com/wasmerio/wasix-libc.git";
+    /// Download url for LLVM + clang.
+    const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
+
     eprintln!("Building wasix-libc...");
+
 
     ensure_binary("git", &["--version"])?;
 
@@ -275,7 +274,7 @@ fn build_libc(
     Command::new("make")
         .arg(format!(
             "-j{}",
-            available_parallelism().map(|x| x.get()).unwrap_or(1)
+            std::thread::available_parallelism().map(|x| x.get()).unwrap_or(1)
         ))
         .current_dir(&build_dir)
         .env("TARGET_ARCH", "wasm32")
