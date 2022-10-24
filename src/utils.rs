@@ -212,6 +212,9 @@ pub fn get(url: &str) -> Result<Response> {
     Ok(response)
 }
 
+/// Recursively copy one filesystem path to another.
+///
+// Hand-written to prevent an extra dependency.
 pub fn copy_path(
     src: &Path,
     target: &Path,
