@@ -190,9 +190,9 @@ fn prepare_git_repo(
 
 #[cfg(not(target_os = "linux"))]
 fn build_libc(
-    build_root: &Path,
-    git_tag: Option<String>,
-    update_repo: bool,
+    _build_root: &Path,
+    _git_tag: Option<String>,
+    _update_repo: bool,
 ) -> Result<(), anyhow::Error> {
     anyhow::bail!("libc builds are only supported on Linux");
 }
