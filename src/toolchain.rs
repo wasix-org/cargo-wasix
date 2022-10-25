@@ -378,6 +378,9 @@ wasi-root = "../wasix-libc/sysroot64"
 
     // Stage 1.
     let mut cmd = Command::new("python3");
+    // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
+    // things that break the build.
+    cmd.env("GITHUB_ACTIONS", "false");
     cmd.args(["x.py", "build"]);
     if let Some(triple) = host_triple {
         cmd.args(["--host", triple]);
@@ -386,6 +389,9 @@ wasi-root = "../wasix-libc/sysroot64"
 
     // Stage 2.
     let mut cmd = Command::new("python3");
+    // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
+    // things that break the build.
+    cmd.env("GITHUB_ACTIONS", "false");
     cmd.arg(rust_dir.join("x.py"))
         .args(["build", "--stage", "2"]);
     if let Some(triple) = host_triple {
