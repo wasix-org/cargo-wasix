@@ -436,7 +436,7 @@ fn guess_host_target() -> Option<&'static str> {
     return Some("aarch64-apple-darwin");
 
     #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
-    return Some("x86_64-apple-darwin");
+    return Some("x86_64-pc-windows-gnu");
 
     None
 }
@@ -704,7 +704,12 @@ WARNING: building takes a long time!"#
     };
 
     // Sanity check the toolchain.
-    let rust_sysroot = Command::new("rustc")
+    #[cfg(not(target_os = "windows"))]
+    let rust_cmd = "rustc";
+    #[cfg(target_os = "windows")]
+    let rust_cmd = "rustc.exe";
+
+    let rust_sysroot = Command::new(rust_cmd)
         .arg(format!("+{}", toolchain.name))
         .arg("--print")
         .arg("sysroot")
@@ -742,7 +747,13 @@ mod tests {
         }
         let root = download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir).unwrap();
         let dir = root.join("rust");
-        assert!(dir.join("bin").join("rustc").is_file());
+
+        #[cfg(not(target_os = "windows"))]
+        let exe_name = "rustc";
+        #[cfg(target_os = "windows")]
+        let exe_name = "rustc.exe";
+
+        assert!(dir.join("bin").join(exe_name).is_file());
         std::fs::remove_dir_all(&tmp_dir).ok();
     }
 }
