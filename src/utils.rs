@@ -215,6 +215,7 @@ pub fn get(url: &str) -> Result<Response> {
 /// Recursively copy one filesystem path to another.
 ///
 // Hand-written to prevent an extra dependency.
+#[allow(dead_code)]
 pub fn copy_path(
     src: &Path,
     target: &Path,
@@ -237,8 +238,9 @@ pub fn copy_path(
             }
         } else {
             if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent)
-                    .with_context(|| format!("Could not create directory '{}'", parent.display()))?;
+                std::fs::create_dir_all(parent).with_context(|| {
+                    format!("Could not create directory '{}'", parent.display())
+                })?;
             }
             std::fs::copy(src, target).with_context(|| {
                 format!(

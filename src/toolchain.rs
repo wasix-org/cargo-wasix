@@ -205,7 +205,6 @@ fn build_libc(
 
     eprintln!("Building wasix-libc...");
 
-
     ensure_binary("git", &["--version"])?;
 
     let git_tag = git_tag.as_deref().unwrap_or("main");
@@ -274,7 +273,9 @@ fn build_libc(
     Command::new("make")
         .arg(format!(
             "-j{}",
-            std::thread::available_parallelism().map(|x| x.get()).unwrap_or(1)
+            std::thread::available_parallelism()
+                .map(|x| x.get())
+                .unwrap_or(1)
         ))
         .current_dir(&build_dir)
         .env("TARGET_ARCH", "wasm32")
@@ -343,7 +344,6 @@ fn build_rust(
 ) -> Result<RustBuildOutput, anyhow::Error> {
     let rust_dir = build_root.join("wasix-rust");
     let git_tag = tag.unwrap_or(RUST_BRANCH);
-    let real_host_triple = guess_host_target().context("Could not determine host triple")?;
 
     if update_repo {
         prepare_git_repo(RUST_REPO, git_tag, &rust_dir, true)?;
@@ -352,8 +352,10 @@ fn build_rust(
     let config = r#"
 changelog-seen = 2
 
-[llvm]
-download-ci-llvm = true
+# NOTE: can't enable because using the cached llvm prevents building rust-lld,
+# which is required for the toolchain to work.
+#[llvm]
+#download-ci-llvm = true
 
 [build]
 target = ["wasm32-wasmer-wasi", "wasm64-wasmer-wasi"]
@@ -362,8 +364,8 @@ tools = [ "clippy", "rustfmt" ]
 configure-args = []
 
 [rust]
-# lld = false
-# llvm-tools = false
+lld = true
+llvm-tools = true
 
 [target.wasm32-wasmer-wasi]
 wasi-root = "../wasix-libc/sysroot32"
@@ -391,52 +393,32 @@ wasi-root = "../wasix-libc/sysroot64"
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
-    let stage2_dir = rust_dir.join("build").join(real_host_triple).join("stage2");
-
-    // Sanity check.
-    let rustc_path = stage2_dir.join("bin").join("rustc");
-    if !rustc_path.is_file() {
-        bail!(
-            "Build finished, but could not find the rustc executable at '{}'",
-            rustc_path.display()
-        );
-    }
-
     eprintln!("Rust build complete!");
 
-    eprintln!("Copying binaries from rustup distribution...");
+    if let Some(triple) = host_triple {
+        let dir = rust_dir.join("build").join(triple).join("stage2");
+        Ok(RustBuildOutput {
+            target: triple.to_string(),
+            toolchain_dir: dir,
+        })
+    } else {
+        // Find target.
+        // TODO: properly detect host triple from output?
+        // Currently could return the wrong result if multiple hosts were built.
+        for res in std::fs::read_dir(rust_dir.join("build"))? {
+            let entry = res?;
+            let toolchain_dir = entry.path().join("stage2");
+            if toolchain_dir.is_dir() {
+                let target = entry.file_name().to_string_lossy().to_string();
+                return Ok(RustBuildOutput {
+                    target,
+                    toolchain_dir,
+                });
+            }
+        }
 
-    {
-        // Install the nightly toolchain.
-        // TODO: should probably take LLVM binaries from the ci-llvm (downloaded).
-        let nightly_toolchain_name = format!("nightly-{real_host_triple}");
-        Command::new("rustup")
-            .args(&[
-                "toolchain",
-                "add",
-                "--force-non-host",
-                &nightly_toolchain_name,
-            ])
-            .run_verbose()?;
-        let nightly_toolchain = RustupToolchain::find_by_name(&nightly_toolchain_name)?
-            .with_context(|| {
-                format!("Could not find rustup toolchain with name {nightly_toolchain_name}")
-            })?;
-
-        // Copy binaries...
-        let bin_dir = PathBuf::from("lib/rustlib").join(real_host_triple).join("bin");
-        crate::utils::copy_path(
-            &nightly_toolchain.path.join(&bin_dir),
-            &stage2_dir.join(bin_dir),
-            true,
-            true,
-        )?;
+        bail!("Could not find build directory")
     }
-
-    Ok(RustBuildOutput {
-        target: real_host_triple.to_string(),
-        toolchain_dir: stage2_dir,
-    })
 }
 
 /// Try to get the host target triple.
