@@ -11,6 +11,7 @@ use std::{
 };
 
 use anyhow::{bail, Context};
+use reqwest::header::HeaderMap;
 
 use crate::{
     config::Config,
@@ -467,7 +468,21 @@ struct GithubAsset {
 
 /// Download a pre-built toolchain from Github releases.
 fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBuf, anyhow::Error> {
+    let mut headers = HeaderMap::new();
+
+    // Use api token if specified via env var.
+    // Prevents 403 errors when IP is throttled by Github API.
+    let gh_token = std::env::var("GITHUB_TOKEN")
+        .ok()
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty());
+
+    if let Some(token) = gh_token {
+        headers.insert("authorization", format!("Bearer {token}").parse()?);
+    }
+
     let client = reqwest::blocking::Client::builder()
+        .default_headers(headers)
         .user_agent("cargo-wasix")
         .build()?;
 
@@ -475,6 +490,9 @@ fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBu
         .trim_start_matches("https://github.com/")
         .trim_end_matches(".git");
     let release_url = format!("https://api.github.com/repos/{repo}/releases/latest");
+
+    eprintln!("Finding latest release... ({release_url})...");
+
     let release: GithubReleaseData = client
         .get(&release_url)
         .send()?
