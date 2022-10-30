@@ -377,7 +377,11 @@ wasi-root = "../wasix-libc/sysroot64"
     std::fs::write(rust_dir.join("config.toml"), config)?;
 
     // Stage 1.
-    let mut cmd = Command::new("python3");
+
+    let has_python3 = Command::new("python3").arg("--version").run().is_ok();
+    let python_cmd = if has_python3 { "python3" } else { "python" };
+
+    let mut cmd = Command::new(python_cmd);
     // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
     // things that break the build.
     cmd.env("GITHUB_ACTIONS", "false");
