@@ -355,8 +355,8 @@ changelog-seen = 2
 
 # NOTE: can't enable because using the cached llvm prevents building rust-lld,
 # which is required for the toolchain to work.
-#[llvm]
-#download-ci-llvm = true
+[llvm]
+download-ci-llvm = false
 
 [build]
 target = ["wasm32-wasmer-wasi", "wasm64-wasmer-wasi"]
