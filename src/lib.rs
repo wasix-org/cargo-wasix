@@ -438,7 +438,7 @@ fn run_wasm_opt(
     cmd.arg("--strip-producers");
     cmd.arg("--asyncify");
 
-    if build.enable_name_section(profile) {
+    if profile.debuginfo.is_some() || profile.opt_level == "0" {
         cmd.arg("--debuginfo");
     } else {
         cmd.arg("--strip-debug");
