@@ -433,6 +433,8 @@ fn run_wasm_opt(
     cmd.arg(&input);
     cmd.arg(format!("-O{}", profile.opt_level));
     cmd.arg("-o").arg(wasm);
+    cmd.arg("-all");
+    cmd.arg("--no-validation");
     cmd.arg("--strip-producers");
     cmd.arg("--asyncify");
 
