@@ -173,7 +173,7 @@ fn prepare_git_repo(
 
     if all_submodules {
         Command::new("git")
-            .args(["submodule", "update", "--init", "--recursive"])
+            .args(["submodule", "update", "--init", "--recursive", "--progress"]) // added progress as llvm takes a very long time
             .current_dir(path)
             .run_verbose()?;
     }
@@ -641,7 +641,9 @@ impl RustupToolchain {
         let path_raw = out
             .lines()
             .find(|line| line.trim().starts_with(name))
-            .and_then(|line| line.split_whitespace().last());
+            .and_then(|line| line.strip_prefix(name))
+            .map(|line| line.trim());
+
         if let Some(path) = path_raw {
             Ok(Some(Self {
                 name: name.to_string(),
