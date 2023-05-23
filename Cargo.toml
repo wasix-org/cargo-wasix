@@ -4,7 +4,7 @@ version = "0.1.16"
 authors = ["Alex Crichton <alex@alexcrichton.com>", "John Sharratt <johnathan.sharratt@gmail.com"]
 edition = "2018"
 license = "Apache-2.0 WITH LLVM-exception"
-repository = "https://github.com/john-sharratt/cargo-wasix"
+repository = "https://github.com/wasix-org/cargo-wasix"
 readme = "README.md"
 description = """
 Subcommand for Cargo to easily build code for `wasm64-wasi`
