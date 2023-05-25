@@ -259,28 +259,33 @@ fn build_libc(
     //     .current_dir(&build_dir)
     //     .run_verbose()?;
 
+    let out_dir = libc_dir.join("sysroot");
+
     eprintln!("Building wasm32...");
     let dir32 = libc_dir.join("sysroot32");
     if dir32.is_dir() {
         std::fs::remove_dir_all(&dir32)?;
     }
+    if out_dir.is_dir() {
+        std::fs::remove_dir_all(&out_dir)?;
+    }
     Command::new("bash")
-        .arg("build32.sh")
+        .arg("./build32.sh")
         .current_dir(&libc_dir)
         .run_verbose()?;
-    std::fs::rename(libc_dir.join("sysroot"), &dir32)?;
 
     eprintln!("Building wasm64...");
     let dir64 = libc_dir.join("sysroot64");
     if dir64.is_dir() {
         std::fs::remove_dir_all(&dir64)?;
     }
+    if out_dir.is_dir() {
+        std::fs::remove_dir_all(&out_dir)?;
+    }
     Command::new("bash")
-        .arg("build64.sh")
+        .arg("./build64.sh")
         .current_dir(&libc_dir)
         .run_verbose()?;
-
-    std::fs::rename(libc_dir.join("sysroot"), &dir64)?;
 
     eprintln!(
         "wasix-libc build complete!\n{}\n{}",
