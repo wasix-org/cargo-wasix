@@ -25,6 +25,11 @@ const RUST_BRANCH: &str = "wasix";
 
 const RUSTUP_TOOLCHAIN_NAME: &str = "wasix";
 
+const LIBC_REPO: &str = "https://github.com/wasix-org/wasix-libc.git";
+
+/// Download url for LLVM + clang (LINUX).
+const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
+
 /// Options for a toolchain build.
 pub struct BuildToochainOptions {
     root: PathBuf,
@@ -200,10 +205,6 @@ fn build_libc(
     git_tag: Option<String>,
     update_repo: bool,
 ) -> Result<(), anyhow::Error> {
-    const LIBC_REPO: &str = "https://github.com/wasix-org/wasix-libc.git";
-    /// Download url for LLVM + clang.
-    const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
-
     eprintln!("Building wasix-libc...");
 
     ensure_binary("git", &["--version"])?;
@@ -212,10 +213,10 @@ fn build_libc(
 
     std::fs::create_dir_all(build_root)
         .with_context(|| format!("Could not create directory: {}", build_root.display()))?;
-    let build_dir = build_root.join("wasix-libc");
+    let libc_dir = build_root.join("wasix-libc");
 
     if update_repo {
-        prepare_git_repo(LIBC_REPO, git_tag, &build_dir, true)?;
+        prepare_git_repo(LIBC_REPO, git_tag, &libc_dir, true)?;
     }
 
     eprintln!("Ensuring LLVM...");
@@ -224,7 +225,7 @@ fn build_libc(
         eprintln!("Downloading LLVM...");
         std::fs::create_dir_all(&llvm_dir)?;
 
-        let archive_path = build_dir.join("llvm.tar.xz");
+        let archive_path = libc_dir.join("llvm.tar.xz");
 
         Command::new("curl")
             .args(["-L", "-o"])
@@ -259,67 +260,27 @@ fn build_libc(
     //     .run_verbose()?;
 
     eprintln!("Building wasm32...");
-    let dir32 = build_dir.join("sysroot32");
-
-    eprintln!("Generating headers...");
-    Command::new("cargo")
-        .args([
-            "run",
-            "--manifest-path",
-            "tools/wasix-headers/Cargo.toml",
-            "generate-libc",
-        ])
-        .current_dir(&build_dir)
-        .run_verbose()?;
-    Command::new("make")
-        .arg(format!(
-            "-j{}",
-            std::thread::available_parallelism()
-                .map(|x| x.get())
-                .unwrap_or(1)
-        ))
-        .current_dir(&build_dir)
-        .env("TARGET_ARCH", "wasm32")
-        .env("TARGET_OS", "wasix")
-        .env("CC", llvm_dir.join("bin").join("clang"))
-        .env("NM", llvm_dir.join("bin").join("llvm-nm"))
-        .env("AR", llvm_dir.join("bin").join("llvm-ar"))
-        .run_verbose()?;
-    std::fs::remove_file(build_dir.join("sysroot/lib/wasm32-wasi/libc-printscan-long-double.a"))
-        .ok();
+    let dir32 = libc_dir.join("sysroot32");
     if dir32.is_dir() {
         std::fs::remove_dir_all(&dir32)?;
     }
-    std::fs::rename(build_dir.join("sysroot"), &dir32)?;
+    Command::new("bash")
+        .arg("build32.sh")
+        .current_dir(&libc_dir)
+        .run_verbose()?;
+    std::fs::rename(libc_dir.join("sysroot"), &dir32)?;
 
     eprintln!("Building wasm64...");
-    let dir64 = build_dir.join("sysroot64");
-
-    eprintln!("Generating headers...");
-    Command::new("cargo")
-        .args([
-            "run",
-            "--manifest-path",
-            "tools/wasix-headers/Cargo.toml",
-            "generate-libc",
-            "--64bit",
-        ])
-        .current_dir(&build_dir)
-        .run_verbose()?;
-    Command::new("make")
-        .current_dir(&build_dir)
-        .env("TARGET_ARCH", "wasm64")
-        .env("TARGET_OS", "wasix")
-        .env("CC", llvm_dir.join("bin").join("clang"))
-        .env("NM", llvm_dir.join("bin").join("llvm-nm"))
-        .env("AR", llvm_dir.join("bin").join("llvm-ar"))
-        .run_verbose()?;
-    std::fs::remove_file(build_dir.join("sysroot/lib/wasm64-wasi/libc-printscan-long-double.a"))
-        .ok();
+    let dir64 = libc_dir.join("sysroot64");
     if dir64.is_dir() {
         std::fs::remove_dir_all(&dir64)?;
     }
-    std::fs::rename(build_dir.join("sysroot"), &dir64)?;
+    Command::new("bash")
+        .arg("build64.sh")
+        .current_dir(&libc_dir)
+        .run_verbose()?;
+
+    std::fs::rename(libc_dir.join("sysroot"), &dir64)?;
 
     eprintln!(
         "wasix-libc build complete!\n{}\n{}",
