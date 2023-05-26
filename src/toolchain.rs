@@ -426,9 +426,16 @@ wasi-root = "{sysroot32}"
 wasi-root = "{sysroot64}"
 "#;
 
+    // Note: need to replace \ with \\ for Windows paths.
     let config = config_tpl
-        .replace("{sysroot32}", sysroot32.to_str().unwrap())
-        .replace("{sysroot64}", sysroot64.to_str().unwrap());
+        .replace(
+            "{sysroot32}",
+            &sysroot32.to_str().unwrap().replace('\\', "\\\\"),
+        )
+        .replace(
+            "{sysroot64}",
+            &sysroot64.to_str().unwrap().replace('\\', "\\\\"),
+        );
 
     std::fs::write(rust_dir.join("config.toml"), config)?;
 
