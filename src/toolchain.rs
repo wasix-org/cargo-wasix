@@ -196,10 +196,10 @@ fn prepare_git_repo(
         Command::new("git")
             .args([
                 "clone",
-                "--depth",
-                "1",
-                "--recurse-submodules",
-                "--shallow-submodules",
+                // "--depth",
+                // "1",
+                // "--recurse-submodules",
+                // "--shallow-submodules",
                 source,
             ])
             .arg(path)
