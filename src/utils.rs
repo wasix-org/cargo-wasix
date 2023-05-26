@@ -242,13 +242,11 @@ pub fn copy_path(
                     format!("Could not create directory '{}'", parent.display())
                 })?;
             }
-            std::fs::copy(src, target).with_context(|| {
-                format!(
-                    "Could not copy file from '{}' to '{}'",
-                    src.display(),
-                    target.display()
-                )
-            })?;
+
+            let mut input = std::fs::File::open(src)?;
+            let mut output = std::fs::File::create(target)?;
+            std::io::copy(&mut input, &mut output)?;
+
             if verbose {
                 eprintln!("Copied '{}' to '{}'", src.display(), target.display());
             }
@@ -268,7 +266,13 @@ pub fn copy_path(
         }
 
         Ok(())
+    } else if meta.is_symlink() {
+        todo!()
     } else {
-        Ok(())
+        bail!(
+            "Could not copy from '{}' to '{}': unknown file type",
+            src.display(),
+            target.display()
+        );
     }
 }

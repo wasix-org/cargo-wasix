@@ -77,6 +77,43 @@ impl BuildToochainOptions {
     }
 }
 
+fn ensure_libc_dir_valid(dir: &Path) -> Result<(), anyhow::Error> {
+    // Make sure sysroot dirs exist.
+    let dir32 = dir.join("sysroot32");
+    let archive32 = dir32.join("lib/wasm32-wasi/libc.a");
+
+    let dir64 = dir.join("sysroot64");
+    let archive64 = dir64.join("lib/wasm64-wasi/libc.a");
+
+    if !dir32.is_dir() {
+        bail!(
+            "Invalid libc dir: directory does not exit: '{}'",
+            dir32.display()
+        );
+    }
+    if !archive32.is_file() {
+        bail!(
+            "Invalid libc dir: archive does not exit: '{}'",
+            archive32.display()
+        );
+    }
+
+    if !dir64.is_dir() {
+        bail!(
+            "Invalid libc dir: directory does not exit: '{}'",
+            dir64.display()
+        );
+    }
+    if !archive64.is_file() {
+        bail!(
+            "Invalid libc dir: archive does not exit: '{}'",
+            archive64.display()
+        );
+    }
+
+    Ok(())
+}
+
 /// Build the wasix toolchain.
 ///
 /// Returns the toolchain directory path.
@@ -90,20 +127,14 @@ pub fn build_toolchain(
         setup_apt()?;
     }
 
+    let libc_dir = options.root.join("wasix-libc");
     if options.build_libc {
         build_libc(&options.root, None, options.update_repos)?;
+        ensure_libc_dir_valid(&libc_dir).context("libc build failed")?;
     } else {
-        let dir = options.root.join("wasix-libc");
-        let dir32 = dir.join("sysroot32");
-        let dir64 = dir.join("sysroot64");
-        if !(dir32.is_dir() && dir64.is_dir()) {
-            bail!(
-                "Tried to skip libc build, but {} or {} were not found",
-                dir32.display(),
-                dir64.display()
-            )
-        }
         eprintln!("Skipping libc build!");
+        ensure_libc_dir_valid(&libc_dir)
+            .context("libc build skipped, but specified path invalid")?;
     }
 
     if !options.build_rust {
@@ -163,7 +194,14 @@ fn prepare_git_repo(
 
     if !path.join(".git").is_dir() {
         Command::new("git")
-            .args(["clone", source])
+            .args([
+                "clone",
+                "--depth",
+                "1",
+                "--recurse-submodules",
+                "--shallow-submodules",
+                source,
+            ])
             .arg(path)
             .run_verbose()?;
     }
@@ -205,6 +243,8 @@ fn build_libc(
     git_tag: Option<String>,
     update_repo: bool,
 ) -> Result<(), anyhow::Error> {
+    use crate::utils::copy_path;
+
     eprintln!("Building wasix-libc...");
 
     ensure_binary("git", &["--version"])?;
@@ -251,6 +291,13 @@ fn build_libc(
         .arg("--version")
         .run_verbose()?;
 
+    let original_path_env = std::env::var("PATH")?;
+    let path = format!(
+        "{}:{}",
+        llvm_dir.join("bin").to_str().unwrap(),
+        original_path_env
+    );
+
     // Now run the build.
 
     // TODO: Should we run make clean? (prevents caching...)
@@ -259,33 +306,58 @@ fn build_libc(
     //     .current_dir(&build_dir)
     //     .run_verbose()?;
 
-    let out_dir = libc_dir.join("sysroot");
+    let tmp_dir = std::env::temp_dir();
+
+    let dir32 = libc_dir.join("sysroot32");
+    let dir32_tmp = tmp_dir.join("sysroot32");
+    let dir64 = libc_dir.join("sysroot64");
+    let dir64_tmp = tmp_dir.join("sysroot64");
+
+    if dir32_tmp.is_dir() {
+        std::fs::remove_dir_all(&dir32_tmp)?;
+    }
+    if dir64_tmp.is_dir() {
+        std::fs::remove_dir_all(&dir64_tmp)?;
+    }
 
     eprintln!("Building wasm32...");
-    let dir32 = libc_dir.join("sysroot32");
-    if dir32.is_dir() {
-        std::fs::remove_dir_all(&dir32)?;
-    }
-    if out_dir.is_dir() {
-        std::fs::remove_dir_all(&out_dir)?;
-    }
+    Command::new("make")
+        .arg("clean")
+        .current_dir(&libc_dir)
+        .run_verbose()?;
     Command::new("bash")
         .arg("./build32.sh")
         .current_dir(&libc_dir)
-        .run_verbose()?;
+        .env("PATH", &path)
+        .run_verbose()
+        .context("could not build sysroot32")?;
+
+    copy_path(&dir32, &dir32_tmp, false, true)?;
 
     eprintln!("Building wasm64...");
-    let dir64 = libc_dir.join("sysroot64");
-    if dir64.is_dir() {
-        std::fs::remove_dir_all(&dir64)?;
-    }
-    if out_dir.is_dir() {
-        std::fs::remove_dir_all(&out_dir)?;
-    }
+    Command::new("make")
+        .arg("clean")
+        .current_dir(&libc_dir)
+        .run_verbose()?;
     Command::new("bash")
         .arg("./build64.sh")
         .current_dir(&libc_dir)
-        .run_verbose()?;
+        .env("PATH", &path)
+        .run_verbose()
+        .context("could not build sysroot64")?;
+    // copy_path(&dir64, &dir64_tmp, false, true)?;
+
+    // Command::new("make")
+    //     .arg("clean")
+    //     .current_dir(&libc_dir)
+    //     .run_verbose()?;
+
+    if dir32.is_dir() {
+        std::fs::remove_dir_all(&dir32)?;
+    }
+
+    std::fs::rename(&dir32_tmp, &dir32).context("could not copy temp dir")?;
+    // std::fs::rename(&dir64_tmp, &dir64)?;
 
     eprintln!(
         "wasix-libc build complete!\n{}\n{}",
@@ -310,13 +382,26 @@ fn build_rust(
     update_repo: bool,
 ) -> Result<RustBuildOutput, anyhow::Error> {
     let rust_dir = build_root.join("wasix-rust");
+    let libc_dir = build_root.join("wasix-libc");
     let git_tag = tag.unwrap_or(RUST_BRANCH);
+
+    ensure_libc_dir_valid(&libc_dir)?;
 
     if update_repo {
         prepare_git_repo(RUST_REPO, git_tag, &rust_dir, true)?;
     }
 
-    let config = r#"
+    let sysroot32 = libc_dir.join("sysroot32");
+    let sysroot64 = libc_dir.join("sysroot64");
+    if !sysroot32.is_dir() || !sysroot64.is_dir() {
+        anyhow::bail!(
+            "Could not find wasix-libc sysroots at {} and {}",
+            sysroot32.display(),
+            sysroot64.display()
+        );
+    }
+
+    let config_tpl = r#"
 changelog-seen = 2
 
 # NOTE: can't enable because using the cached llvm prevents building rust-lld,
@@ -335,11 +420,15 @@ lld = true
 llvm-tools = true
 
 [target.wasm32-wasmer-wasi]
-wasi-root = "../wasix-libc/sysroot32"
+wasi-root = "{sysroot32}"
 
 [target.wasm64-wasmer-wasi]
-wasi-root = "../wasix-libc/sysroot64"
+wasi-root = "{sysroot64}"
 "#;
+
+    let config = config_tpl
+        .replace("{sysroot32}", sysroot32.to_str().unwrap())
+        .replace("{sysroot64}", sysroot64.to_str().unwrap());
 
     std::fs::write(rust_dir.join("config.toml"), config)?;
 
