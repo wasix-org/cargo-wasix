@@ -509,7 +509,7 @@ fn guess_host_target() -> Option<&'static str> {
     return Some("aarch64-apple-darwin");
 
     #[cfg(all(target_arch = "x86_64", target_os = "windows"))]
-    return Some("x86_64-pc-windows-gnu");
+    return Some("x86_64-pc-windows-msvc");
 
     None
 }
