@@ -206,7 +206,7 @@ fn rmain(config: &mut Config) -> Result<()> {
                 // Because we know what runtime is being used here, we can print
                 // out installation information.
                 msg.push_str("you can also install through a shell:\n\n");
-                msg.push_str("\tcurl https://wasmer.io/install.sh -sSf | bash\n");
+                msg.push_str("\tcurl https://get.wasmer.io -sSfL | sh\n");
                 bail!("{}", msg);
             }
             cargo.env("__CARGO_WASIX_RUNNER_SHIM", "1");
