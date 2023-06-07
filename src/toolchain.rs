@@ -725,7 +725,12 @@ impl RustupToolchain {
         );
 
         // Small sanity check.
-        let rustc_path = dir.join("bin/rustc");
+        #[cfg(not(target_os = "windows"))]
+        let rustc_exe = "rustc";
+        #[cfg(target_os = "windows")]
+        let rustc_exe = "rustc.exe";
+
+        let rustc_path = dir.join("bin").join(rustc_exe);
         if !rustc_path.is_file() {
             bail!(
                 "Invalid toolchain directory: rustc executable not found at {}",
