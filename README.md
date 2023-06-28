@@ -1,7 +1,7 @@
 # cargo-wasix
 
 A cargo subcommand that wraps regular cargo commands for compiling Rust code
-to `wasix`, a superset of Websassembly `wasi` with additional functionality.
+to `wasix`, a superset of Webassembly `wasi` with additional functionality.
 
 See [wasix.org](https://wasix.org) for more.
 
