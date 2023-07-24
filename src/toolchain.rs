@@ -7,7 +7,7 @@
 
 use std::{
     path::{Path, PathBuf},
-    process::Command,
+    process::Command, fmt::format,
 };
 
 use anyhow::{bail, Context};
@@ -727,10 +727,14 @@ impl RustupToolchain {
         // Small sanity check.
         #[cfg(not(target_os = "windows"))]
         let rustc_exe = "rustc";
+        #[cfg(not(target_os = "windows"))]
+        let rustc_path = dir.join("bin").join(rustc_exe);
         #[cfg(target_os = "windows")]
         let rustc_exe = "rustc.exe";
+        #[cfg(target_os = "windows")]
+        let rustc_path = dir.join(format!("bin\\{}", rustc_exe));
+        
 
-        let rustc_path = dir.join("bin").join(rustc_exe);
         if !rustc_path.is_file() {
             bail!(
                 "Invalid toolchain directory: rustc executable not found at {}",
@@ -806,6 +810,7 @@ WARNING: building takes a long time!"#
     #[cfg(target_os = "windows")]
     let rust_cmd = "rustc.exe";
 
+
     let rust_sysroot = Command::new(rust_cmd)
         .arg(format!("+{}", toolchain.name))
         .arg("--print")
@@ -815,11 +820,20 @@ WARNING: building takes a long time!"#
         .context("Could not execute rustc")?;
     assert_eq!(toolchain.path, rust_sysroot);
 
+    #[cfg(not(target_os = "windows"))]
     let lib_name = if is64bit {
         "lib/rustlib/wasm64-wasmer-wasi"
     } else {
         "lib/rustlib/wasm32-wasmer-wasi"
     };
+
+    #[cfg(target_os = "windows")]
+    let lib_name = if is64bit {
+        "lib\\rustlib\\wasm64-wasmer-wasi"
+    } else {
+        "lib\\rustlib\\wasm32-wasmer-wasi"
+    };
+
     let lib_dir = rust_sysroot.join(lib_name);
     if !lib_dir.exists() {
         bail!(
