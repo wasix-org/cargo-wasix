@@ -164,6 +164,13 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
         if let Some(pkg_id) = dependencies.get(&incompatible_crate.name) {
             let Some(pkg) = metadata.packages.iter().find(|pkg| pkg.id == **pkg_id) else { continue; };
 
+            if let Some(source) = pkg.source.as_ref() {
+                if source.repr.starts_with("git+https://github.com/wasix-org") {
+                    // Already using a replacement crate.
+                    continue;
+                }
+            }
+
             // Filter out versions that are known to compatible.
             if let Some(versions) = &incompatible_crate.compatible_versions {
                 if versions.matches(&pkg.version) {
