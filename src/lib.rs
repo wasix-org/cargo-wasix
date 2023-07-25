@@ -219,16 +219,12 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Tree | Subcommand::Fix => {}
     }
 
-    // Offline env var disables toolchain downloads and update checks.
-    let is_offline =
-        std::env::var("CARGO_WASIX_OFFLINE").map_or(false, |v| v == "1" || v == "true");
-
-    let update_check_opt = if is_offline {
+    let update_check_opt = if config.is_offline {
         Some(internal::UpdateCheck::new(config))
     } else {
         None
     };
-    let toolchain = toolchain::ensure_toolchain(config, is64bit, is_offline)?;
+    let toolchain = toolchain::ensure_toolchain(config, is64bit)?;
 
     std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name);
 
