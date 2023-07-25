@@ -8,6 +8,7 @@ pub struct Config {
     cache: Option<Cache>,
     verbose: bool,
     choice: ColorChoice,
+    pub is_offline: bool,
 }
 
 impl Config {
@@ -20,6 +21,9 @@ impl Config {
             } else {
                 ColorChoice::Never
             },
+            // Offline env var disables toolchain downloads and update checks.
+            is_offline: std::env::var("CARGO_WASIX_OFFLINE")
+                .map_or(false, |v| v == "1" || v == "true"),
         }
     }
 

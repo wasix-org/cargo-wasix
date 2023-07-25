@@ -780,16 +780,12 @@ impl RustupToolchain {
 /// Also checks that the toolchain is correctly installed.
 ///
 /// Returns the path to the toolchain.
-pub fn ensure_toolchain(
-    _config: &Config,
-    is64bit: bool,
-    is_offline: bool,
-) -> Result<RustupToolchain, anyhow::Error> {
+pub fn ensure_toolchain(config: &Config, is64bit: bool) -> Result<RustupToolchain, anyhow::Error> {
     let _lock = Config::acquire_lock()?;
 
     let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
         chain
-    } else if !is_offline {
+    } else if !config.is_offline {
         install_prebuilt_toolchain(&Config::toolchain_dir()?)?
     } else {
         bail!(
