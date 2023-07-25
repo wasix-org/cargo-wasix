@@ -19,6 +19,9 @@ const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 const KNOWN_INCOMPATIBLE_CRATES_URL: &str =
     "https://github.com/wasix-org/cargo-wasix/tree/main/incompatible_crates/data.json";
 
+/// Maximum age before updating the incompatible crate data.
+const MAX_CACHE_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60); // Roughly 30 days.
+
 /// Known incompatible crate.
 #[derive(serde::Deserialize, serde::Serialize, Debug)]
 struct IncompatibleCrate {
@@ -69,6 +72,12 @@ fn read_known_incompatible_crates(config: &Config) -> Result<Vec<IncompatibleCra
             return Err(err).with_context(|| format!("failed to read '{}'", path.display()))
         }
     };
+
+    let metadata = file.metadata()?;
+    if metadata.modified()?.elapsed()? >= MAX_CACHE_AGE {
+        return download_known_incompatible_crates(config, &path);
+    }
+
     serde_json::from_reader(BufReader::new(file))
         .with_context(|| format!("failed to deserialize '{}'", path.display()))
 }
