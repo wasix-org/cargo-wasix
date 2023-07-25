@@ -4,6 +4,7 @@ use crate::config::Config;
 use crate::utils::{self, CommandExt};
 use anyhow::{bail, Context, Result};
 use std::collections::hash_map::{self, HashMap};
+use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::io::{BufReader, BufWriter, Write};
@@ -37,7 +38,7 @@ struct IncompatibleCrate {
 struct Replacement {
     /// Version that needs to be used, in case the latest version isn't
     /// supported.
-    version: String, // cargo_metadata::semver::Version,
+    version: cargo_metadata::semver::VersionReq,
     /// Git repository to use.
     repo: String,
     /// Git branch to use.
@@ -170,17 +171,68 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
                 }
             }
 
-            found_incompatible_crates.push(&incompatible_crate.name);
+            found_incompatible_crates.push((incompatible_crate, &pkg.version));
         }
     }
 
     if found_incompatible_crates.is_empty() {
         Ok(())
     } else {
-        // TODO: better error message:
-        // * better formatting of crates.
-        // * explain to the user how to fix it.
-        bail!("found incompatible crates in dependencies (of dependencies): {found_incompatible_crates:?}",);
+        let mut msg = String::new();
+        msg.push_str("Found incompatible crates in dependencies (of dependencies): ");
+        for name in found_incompatible_crates.iter().map(|(c, _)| &c.name) {
+            write!(&mut msg, "{name}, ")?;
+        }
+        msg.truncate(msg.len() - 2); // Remove last `, `.
+
+        msg.push_str("\n\nTo fix this add the following to 'Cargo.toml':\n");
+        msg.push_str("[patch.crates-io]\n");
+        let mut no_replacements = Vec::new();
+        for (incompatible_crate, need_version) in found_incompatible_crates {
+            let replacement = incompatible_crate
+                .replacements
+                .iter()
+                .find(|replacement| replacement.version.matches(need_version));
+
+            match replacement {
+                Some(replacement) => {
+                    write!(
+                        &mut msg,
+                        "{} = {{ git = \"{}\"",
+                        incompatible_crate.name, replacement.repo,
+                    )?;
+                    if let Some(branch) = replacement.branch.as_ref() {
+                        writeln!(&mut msg, ", branch = \"{branch}\" }}")?;
+                    } else {
+                        msg.push_str(" }\n");
+                    };
+                }
+                None => no_replacements.push((
+                    &incompatible_crate.name,
+                    &incompatible_crate.replacements,
+                    need_version,
+                )),
+            }
+        }
+
+        if !no_replacements.is_empty() {
+            msg.push_str("\nNo replacements found for the following dependencies:\n");
+            for (name, replacements, version) in no_replacements {
+                write!(&mut msg, "* {name} v{version}, ")?;
+                if !replacements.is_empty() {
+                    msg.push_str("known replacement versions: ");
+                    for replacement in replacements {
+                        write!(&mut msg, "{}, ", replacement.version)?;
+                    }
+                    msg.truncate(msg.len() - 2); // Remove last `, `.
+                    msg.push('\n');
+                } else {
+                    msg.push_str("no replacements known\n");
+                }
+            }
+        }
+
+        bail!(msg)
     }
 }
 
