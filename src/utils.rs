@@ -8,6 +8,7 @@ use std::fs;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
 use std::process::{Command, ExitStatus, Output, Stdio};
+use std::time::Duration;
 use std::{env, fmt};
 
 /// Make sure a binary exists and runs with the given arguments.
@@ -185,8 +186,11 @@ fn get_http_proxy() -> Option<String> {
         .and_then(|v| v.ok())
 }
 
-pub fn get(url: &str) -> Result<Response> {
-    let mut client = Client::builder();
+pub fn get(url: &str, timeout: Duration) -> Result<Response> {
+    let mut client = Client::builder()
+        // This is only for the connect phase.
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(timeout);
     if let Some(proxy_url) = get_http_proxy() {
         if let Ok(proxy) = Proxy::all(&proxy_url) {
             client = client.proxy(proxy);

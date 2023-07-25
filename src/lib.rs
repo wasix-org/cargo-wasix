@@ -8,6 +8,7 @@ use std::io;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::Duration;
 use tool_path::ToolPath;
 
 mod cache;
@@ -17,6 +18,9 @@ mod internal;
 mod tool_path;
 mod toolchain;
 mod utils;
+
+/// Timeout used by [`download`].
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub fn main() {
     // See comments in `rmain` around `*_RUNNER` for why this exists here.
@@ -667,7 +671,7 @@ fn download(
     config.status("Downloading", name);
     config.verbose(|| config.status("Get", url));
 
-    let response = utils::get(url)?;
+    let response = utils::get(url, DOWNLOAD_TIMEOUT)?;
     (|| -> Result<()> {
         fs::create_dir_all(parent)
             .context(format!("failed to create directory `{}`", parent.display()))?;

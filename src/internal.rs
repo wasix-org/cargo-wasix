@@ -8,6 +8,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
+const UPDATE_TIMEOUT: Duration = Duration::from_secs(30);
+
 pub fn main(args: &[OsString], config: &Config) -> Result<()> {
     match args.get(0).and_then(|s| s.to_str()) {
         Some("clean") => clean(config),
@@ -50,7 +52,7 @@ fn update_available() -> Result<Option<Version>> {
     }
 
     let url = "https://crates.io/api/v1/crates/cargo-wasix";
-    let response = crate::utils::get(url)?;
+    let response = crate::utils::get(url, UPDATE_TIMEOUT)?;
     let json = response
         .json::<Info>()
         .context(format!("failed to decode json from `{}`", url))?;

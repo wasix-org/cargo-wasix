@@ -9,6 +9,11 @@ use std::io;
 use std::io::{BufReader, BufWriter, Write};
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
+
+/// Timeout for downling the incompatible crates data from
+/// [`KNOWN_INCOMPATIBLE_CRATES_URL`].
+const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 const KNOWN_INCOMPATIBLE_CRATES_URL: &str =
     "https://github.com/wasix-org/cargo-wasix/tree/main/incompatible_crates/data.json";
@@ -83,7 +88,7 @@ fn download_known_incompatible_crates(
     config.status("Downloading", "known incompatible crates list");
     config.verbose(|| config.status("Get", url));
 
-    let response = utils::get(url)?;
+    let response = utils::get(url, DOWNLOAD_TIMEOUT)?;
     let incompatible_crates = response
         .json()
         .with_context(|| format!("failed to deserialize incompatible crates"))?;
