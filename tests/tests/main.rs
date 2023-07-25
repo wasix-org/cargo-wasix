@@ -861,3 +861,63 @@ fn verbose_build_script_works() -> Result<()> {
     p.cargo_wasix("build -vv").assert().success();
     Ok(())
 }
+
+#[test]
+fn dependencies_check() -> Result<()> {
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "foo"
+                version = '1.0.0'
+
+                [dependencies]
+                mio = "0.8.8"
+            "#,
+        )
+        .build();
+
+    p.cargo_wasix("check")
+        .assert()
+        .stdout("")
+        .stderr(is_match(
+            r#".*
+error: Found incompatible crates in dependencies \(of dependencies\): mio, libc
+
+To fix this add the following to 'Cargo.toml'\:
+\[patch\.crates\-io\]
+mio = \{ git = "https://github.com/wasix\-org/mio" \}
+libc = \{ git = "https://github.com/wasix\-org/libc" \}
+
+You might have to run `cargo update` to ensure the dependencies are used properly.*"#,
+        )?)
+        .failure();
+    Ok(())
+}
+
+#[test]
+fn dependencies_replaced_are_ignored() -> Result<()> {
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "foo"
+                version = '1.0.0'
+
+                [dependencies]
+                mio = "0.8.8"
+
+                [patch.crates-io]
+                mio = { git = "https://github.com/wasix-org/mio" }
+                libc = { git = "https://github.com/wasix-org/libc" }
+            "#,
+        )
+        .build();
+
+    p.cargo_wasix("check").assert().stdout("").success();
+    Ok(())
+}
