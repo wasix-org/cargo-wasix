@@ -222,6 +222,10 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
             }
         }
 
+        msg.push_str(
+            "\nYou might have to run `cargo update` to ensure the dependencies are used properly",
+        );
+
         if !no_replacements.is_empty() {
             msg.push_str("\nNo replacements found for the following dependencies:\n");
             for (name, replacements, version) in no_replacements {
