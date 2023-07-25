@@ -71,6 +71,13 @@ fn download_known_incompatible_crates(
     config: &Config,
     path: &Path,
 ) -> Result<Vec<IncompatibleCrate>> {
+    if config.is_offline {
+        static INCLUDED_CRATES: &str = include_str!("../incompatible_crates/data.json");
+        // NOTE: we don't cache this file as this may be really outdated.
+        return serde_json::from_str(INCLUDED_CRATES)
+            .with_context(|| format!("failed to deserialize incompatible crates"));
+    }
+
     let url = KNOWN_INCOMPATIBLE_CRATES_URL;
 
     config.status("Downloading", "known incompatible crates list");
