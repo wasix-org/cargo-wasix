@@ -17,7 +17,7 @@ use std::time::Duration;
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 const KNOWN_INCOMPATIBLE_CRATES_URL: &str =
-    "https://github.com/wasix-org/cargo-wasix/tree/main/incompatible_crates/data.json";
+    "https://raw.githubusercontent.com/wasix-org/cargo-wasix/main/incompatible_crates/data.json";
 
 /// Maximum age before updating the incompatible crate data.
 const MAX_CACHE_AGE: Duration = Duration::from_secs(30 * 24 * 60 * 60); // Roughly 30 days.
