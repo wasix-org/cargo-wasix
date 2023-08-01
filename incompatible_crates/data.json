@@ -1,12 +1,241 @@
 [
-  {"name": "mio", "replacements": [
-    { "version": "0.8", "repo": "https://github.com/wasix-org/mio"}
-  ]},
-  {"name": "libc", "replacements": [
-    { "version": "0.2", "repo": "https://github.com/wasix-org/libc"}
-  ]},
-  {"name": "socket2", "replacements": [
-    { "version": "0.4", "repo": "https://github.com/wasix-org/socket2", "branch": "v0.4.9"},
-    { "version": "0.5", "repo": "https://github.com/wasix-org/socket2", "branch": "v0.5"}
-  ]}
+  {
+    "name": "h2",
+    "replacements": [
+      {
+        "version": "0.3",
+        "repo": "https://github.com/wasix-org/h2",
+        "branch": "master"
+      }
+    ]
+  },
+  {
+    "name": "hyper",
+    "replacements": [
+      {
+        "version": "0.14.18",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.18"
+      },
+      {
+        "version": "0.14.19",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.19"
+      },
+      {
+        "version": "0.14.20",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.20"
+      },
+      {
+        "version": "0.14.21",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.21"
+      },
+      {
+        "version": "0.14.22",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.22"
+      },
+      {
+        "version": "0.14.23",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.23"
+      },
+      {
+        "version": "0.14.24",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.24"
+      },
+      {
+        "version": "0.14.25",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.25"
+      },
+      {
+        "version": "0.14.26",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.26"
+      },
+      {
+        "version": "0.14.27",
+        "repo": "https://github.com/wasix-org/hyper",
+        "branch": "v0.14.27"
+      }
+    ]
+  },
+  {
+    "name": "hyper-tls",
+    "replacements": [
+      {
+        "version": "0.24",
+        "repo": "https://github.com/wasix-org/hyper-tls",
+        "branch": "main"
+      }
+    ]
+  },
+  {
+    "name": "libc",
+    "replacements": [
+      {
+        "version": "0.2.139",
+        "repo": "https://github.com/wasix-org/libc",
+        "branch": "master"
+      },
+      {
+        "version": "0.2.147",
+        "repo": "https://github.com/wasix-org/libc",
+        "branch": "v0.2.147"
+      }
+    ]
+  },
+  {
+    "name": "mio",
+    "replacements": [
+      {
+        "version": "0.8",
+        "repo": "https://github.com/wasix-org/mio"
+      }
+    ]
+  },
+  {
+    "name": "reqwest",
+    "replacements": [
+      {
+        "version": "0.11",
+        "repo": "https://github.com/wasix-org/reqwest",
+        "branch": "master"
+      }
+    ]
+  },
+  {
+    "name": "ring",
+    "replacements": [
+      {
+        "version": "0.16.20",
+        "repo": "https://github.com/wasix-org/ring",
+        "branch": "wasix"
+      }
+    ]
+  },
+  {
+    "name": "rustls",
+    "replacements": [
+      {
+        "version": "0.21.5",
+        "repo": "https://github.com/wasix-org/rustls",
+        "branch": "v0.21.5"
+      },
+      {
+        "version": "0.21.4",
+        "repo": "https://github.com/wasix-org/rustls",
+        "branch": "v0.21.4"
+      },
+      {
+        "version": "0.21.3",
+        "repo": "https://github.com/wasix-org/rustls",
+        "branch": "v0.21.3"
+      },
+      {
+        "version": "0.21.2",
+        "repo": "https://github.com/wasix-org/rustls",
+        "branch": "v0.21.2"
+      }
+    ]
+  },
+  {
+    "name": "rustls-webpki",
+    "replacements": [
+      {
+        "version": "0.100.0",
+        "repo": "https://github.com/wasix-org/webpki",
+        "branch": "v0.100.0"
+      },
+      {
+        "version": "0.100.1",
+        "repo": "https://github.com/wasix-org/webpki",
+        "branch": "v0.100.1"
+      },
+      {
+        "version": "0.101.0",
+        "repo": "https://github.com/wasix-org/webpki",
+        "branch": "v0.101.0"
+      }
+    ]
+  },
+  {
+    "name": "sct",
+    "replacements": [
+      {
+        "version": "0.7.0",
+        "repo": "https://github.com/wasix-org/sct",
+        "branch": "v0.7.0"
+      }
+    ]
+  },
+  {
+    "name": "socket2",
+    "replacements": [
+      {
+        "version": "0.4",
+        "repo": "https://github.com/wasix-org/socket2",
+        "branch": "v0.4.9"
+      },
+      {
+        "version": "0.5.3",
+        "repo": "https://github.com/wasix-org/socket2",
+        "branch": "v0.5.3"
+      },
+      {
+        "version": "0.5.2",
+        "repo": "https://github.com/wasix-org/socket2",
+        "branch": "v0.5.2"
+      },
+      {
+        "version": "0.5.1",
+        "repo": "https://github.com/wasix-org/socket2",
+        "branch": "v0.5.1"
+      },
+      {
+        "version": "0.5",
+        "repo": "https://github.com/wasix-org/socket2",
+        "branch": "v0.5"
+      }
+    ]
+  },
+  {
+    "name": "tokio",
+    "replacements": [
+      {
+        "version": "1",
+        "repo": "https://github.com/wasix-org/tokio",
+        "branch": "wasix-1.24.2"
+      }
+    ]
+  },
+  {
+    "name": "tokio-rustls",
+    "replacements": [
+      {
+        "version": "0.24",
+        "repo": "https://github.com/wasix-org/tokio-rustls",
+        "branch": "main"
+      }
+    ]
+  },
+  {
+    "name": "webpki-roots",
+    "replacements": [
+      {
+        "version": "0.23.1",
+        "repo": "https://github.com/wasix-org/webpki-roots",
+        "branch": "main"
+      },
+      {
+        "version": "0.24.0",
+        "repo": "https://github.com/wasix-org/webpki-roots",
+        "branch": "main"
+      }
+    ]
+  }
 ]
