@@ -99,14 +99,14 @@ impl Project {
 
     pub fn debug_wasm(&self, name: &str) -> PathBuf {
         self.build_dir()
-            .join("wasm64-wasi")
+            .join("wasm32-wasmer-wasi")
             .join("debug")
             .join(format!("{}.wasm", name))
     }
 
     pub fn release_wasm(&self, name: &str) -> PathBuf {
         self.build_dir()
-            .join("wasm64-wasi")
+            .join("wasm32-wasmer-wasi")
             .join("release")
             .join(format!("{}.wasm", name))
     }
@@ -121,6 +121,6 @@ impl Project {
             process.env("CARGO_TARGET_WASM32_WASIX_RUNNER", runtime_override);
         }
 
-        return process;
+        process
     }
 }

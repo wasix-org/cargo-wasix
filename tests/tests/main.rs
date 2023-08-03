@@ -24,7 +24,7 @@ fn cargo_wasix(args: &str) -> Command {
     path.insert(0, me);
     cmd.env("PATH", std::env::join_paths(&path).unwrap());
 
-    return cmd;
+    cmd
 }
 
 #[test]
@@ -165,6 +165,7 @@ fn check_output() -> Result<()> {
             "^\
 .*Compiling foo v1.0.0 .*
 .*Finished dev .*
+.*info: Post-processing WebAssembly files
 $",
         )?)
         .success();
@@ -184,6 +185,7 @@ $",
 .*Running `rustc.*`
 .*Finished dev .*
 .*Processing .*foo.rustc.wasm
+.*info: Post-processing WebAssembly files
 $",
         )?)
         .success();
