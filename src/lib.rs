@@ -244,10 +244,11 @@ fn rmain(config: &mut Config) -> Result<()> {
         env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
     }
 
+    // FIXME: these checks don't let workspace roots compile with wasix
     // Check the dependencies, if needed, before running cargo.
-    if check_deps {
-        dependencies::check(config, target)?;
-    }
+    // if check_deps {
+    //     dependencies::check(config, target)?;
+    // }
 
     // Run the cargo commands
     let build = execute_cargo(&mut cargo, config)?;
