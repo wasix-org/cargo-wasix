@@ -118,7 +118,7 @@ impl Project {
             .env("CARGO_HOME", self.root.join("cargo-home"));
 
         if let Some(runtime_override) = &self.runtime_override {
-            process.env("CARGO_TARGET_WASM32_WASIX_RUNNER", runtime_override);
+            process.env("CARGO_TARGET_WASM32_WASMER_WASI_RUNNER", runtime_override);
         }
 
         process
