@@ -42,7 +42,7 @@ jobs:
       - name: test
         shell: bash
         run: |
-          cargo test --color=never --all-features
+          cargo test --all-features
       - name: build
         shell: bash
         run: |
