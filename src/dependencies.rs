@@ -134,13 +134,16 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
         .arg("--filter-platform")
         .arg(target)
         .capture_stdout()?;
+    dbg!(&target);
     let metadata = serde_json::from_str::<cargo_metadata::Metadata>(&metadata)
         .context("failed to deserialize `cargo metadata`")?;
+    dbg!(&metadata);
 
     let resolve = metadata
         .resolve
         .as_ref()
         .context("failed to resolve root package")?;
+    dbg!(&metadata.resolve);
     let root_pkg_id = resolve
         .root
         .as_ref()

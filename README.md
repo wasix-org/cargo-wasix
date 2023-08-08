@@ -23,21 +23,21 @@ $ cargo wasix --version
 ## Usage
 
 The `cargo wasix` subcommand is a thin wrapper around `cargo` subcommands,
-providing optimized defaults for the `wasm64-wasi` target. Using `cargo wasix`
+providing optimized defaults for the `wasm32-wasmer-wasi` target. Using `cargo wasix`
 looks very similar to using `cargo`:
 
-* `cargo wasix build` — build your code in debug mode for the wasix target.
+- `cargo wasix build` — build your code in debug mode for the wasix target.
 
-* `cargo wasix build --release` — build the optimized version of your `*.wasm`.
+- `cargo wasix build --release` — build the optimized version of your `*.wasm`.
 
-* `cargo wasix run` — execute a binary.
+- `cargo wasix run` — execute a binary.
 
-* `cargo wasix test` — run your tests in `wasm64-wasi`.
+- `cargo wasix test` — run your tests in `wasm32-wasmer-wasi`.
 
-* `cargo wasix bench` — run your benchmarks in `wasm64-wasi`.
+- `cargo wasix bench` — run your benchmarks in `wasm32-wasmer-wasi`.
 
 In general, if you'd otherwise execute `cargo foo --flag` you can likely execute
-`cargo wasix foo --flag` and everything will "just work" for the `wasm64-wasi`
+`cargo wasix foo --flag` and everything will "just work" for the `wasm32-wasmer-wasi`
 target.
 
 To give it a spin yourself, try out the hello-world versions of programs!
@@ -49,8 +49,8 @@ $ cd wasix-hello-world
 $ cargo wasix run
    Compiling wasix-hello-world v0.1.0 (/code/wasix-hello-world)
     Finished dev [unoptimized + debuginfo] target(s) in 0.15s
-     Running `cargo-wasix target/wasm64-wasi/debug/wasix-hello-world.wasm`
-     Running `target/wasm64-wasi/debug/wasix-hello-world.wasm`
+     Running `cargo-wasix target/wasm32-wasmer-wasi/debug/wasix-hello-world.wasm`
+     Running `target/wasm32-wasmer-wasi/debug/wasix-hello-world.wasm`
 Hello, world!
 ```
 
@@ -63,8 +63,8 @@ $ cd wasix-hello-world
 $ cargo wasix test
    Compiling wasix-hello-world v0.1.0 (/code/wasix-hello-world)
     Finished dev [unoptimized + debuginfo] target(s) in 0.19s
-     Running target/wasm64-wasi/debug/deps/wasix_hello_world-9aa88657c21196a1.wasm
-     Running `/code/wasix-hello-world/target/wasm64-wasi/debug/deps/wasix_hello_world-9aa88657c21196a1.wasm`
+     Running target/wasm32-wasmer-wasi/debug/deps/wasix_hello_world-9aa88657c21196a1.wasm
+     Running `/code/wasix-hello-world/target/wasm32-wasmer-wasi/debug/deps/wasix_hello_world-9aa88657c21196a1.wasm`
 
 running 1 test
 test tests::it_works ... ok
