@@ -572,7 +572,7 @@ fn run_forward_args() -> Result<()> {
         .build()
         .cargo_wasix("run a -b c")
         .assert()
-        .stdout("[\"a\", \"-b\", \"c\"]\n")
+        .stdout("[\"a\", \"-b\", \"c\", \"--color=never\"]\n")
         .success();
     Ok(())
 }
