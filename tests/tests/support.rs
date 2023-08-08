@@ -121,6 +121,8 @@ impl Project {
             process.env("CARGO_TARGET_WASM32_WASMER_WASI_RUNNER", runtime_override);
         }
 
+        process.arg("--color=never");
+
         process
     }
 }
