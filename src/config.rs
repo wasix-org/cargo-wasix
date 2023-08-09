@@ -128,6 +128,14 @@ impl Config {
         eprintln!(": {}", msg);
     }
 
+    pub fn warn(&self, msg: &str) {
+        let mut shell = StandardStream::stderr(self.choice);
+        drop(shell.set_color(ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true)));
+        eprint!("warn");
+        drop(shell.reset());
+        eprintln!(": {}", msg);
+    }
+
     /// Returns the path to execute a tool, which may be the cache path to
     /// download it to if unavailable, and whether the path has been
     /// overridden.
