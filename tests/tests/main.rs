@@ -862,7 +862,7 @@ fn workspace_works() -> Result<()> {
     p.cargo_wasix("build")
         .assert()
         .stderr(is_match(
-            "^\
+            "(?m)^\
 .*Compiling foo v1.0.0 .*
 .*Finished dev .*
 .*info: Post-processing WebAssembly files
@@ -899,9 +899,7 @@ fn verbose_build_script_works() -> Result<()> {
     Ok(())
 }
 
-// FIXME: fails as there are no dependency checks
 #[test]
-#[ignore]
 fn dependencies_check() -> Result<()> {
     let p = support::project()
         .file("src/main.rs", "fn main() {}")
@@ -920,19 +918,8 @@ fn dependencies_check() -> Result<()> {
 
     p.cargo_wasix("check")
         .assert()
-        .stdout("")
-        .stderr(is_match(
-            r#"^\
-.*error: Found incompatible crates in dependencies (of dependencies): mio, libc
-
-To fix this add the following to 'Cargo.toml':
-\[patch\.crates\-io\]
-mio = \{ git = "https://github.com/wasix\-org/mio" \}
-libc = \{ git = "https://github.com/wasix\-org/libc" \}
-
-You might have to run `cargo update` to ensure the dependencies are used properly.*"#,
-        )?)
-        .failure();
+        .stderr(predicates::str::contains("Found incompatible crates in dependencies (of dependencies): libc, mio\n\nTo fix this add the following to \'Cargo.toml\':\n[patch.crates-io]\nlibc = { git = \"https://github.com/wasix-org/libc\", branch = \"master\" }\nmio = { git = \"https://github.com/wasix-org/mio\" }\n\nYou might have to run `cargo update` to ensure the dependencies are used properly\n"))
+        .success();
     Ok(())
 }
 
