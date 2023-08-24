@@ -151,7 +151,9 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
     let mut dependencies = HashMap::new();
     let mut to_check = vec![root_pkg_id];
     while let Some(pkg_id) = to_check.pop() {
-        let Some(node) = resolve.nodes.iter().find(|n| n.id == *pkg_id) else { continue; };
+        let Some(node) = resolve.nodes.iter().find(|n| n.id == *pkg_id) else {
+            continue;
+        };
         for dependency in &node.deps {
             if is_build_dep(&dependency.dep_kinds) {
                 continue;
@@ -171,7 +173,9 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
     let known_incompatible_crates = known_incompatible_crates(config);
     for incompatible_crate in &known_incompatible_crates {
         if let Some(pkg_id) = dependencies.get(&incompatible_crate.name) {
-            let Some(pkg) = metadata.packages.iter().find(|pkg| pkg.id == **pkg_id) else { continue; };
+            let Some(pkg) = metadata.packages.iter().find(|pkg| pkg.id == **pkg_id) else {
+                continue;
+            };
 
             if let Some(source) = pkg.source.as_ref() {
                 if source.repr.starts_with("git+https://github.com/wasix-org") {
