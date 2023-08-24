@@ -678,6 +678,14 @@ pub fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<RustupToolchai
             Ok(path) => RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &path.join("rust")),
             Err(err) => {
                 eprintln!("Could not download pre-built toolchain: {err:?}");
+
+                let root_cause = err.root_cause();
+                let root_description = format!("{root_cause:?}");
+                if root_description.contains("HTTP") && root_description.contains("api.github.com")
+                {
+                    eprintln!("\nHint: You can pass in a Github token via the GITHUB_TOKEN environment variable to avoid rate limits");
+                }
+
                 Err(err.context("Download of pre-built toolchain failed"))
             }
         }
