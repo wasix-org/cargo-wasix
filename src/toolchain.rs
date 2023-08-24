@@ -25,8 +25,10 @@ const RUST_BRANCH: &str = "wasix";
 
 const RUSTUP_TOOLCHAIN_NAME: &str = "wasix";
 
+#[cfg(target_os = "linux")]
 const LIBC_REPO: &str = "https://github.com/wasix-org/wasix-libc.git";
 
+#[cfg(target_os = "linux")]
 /// Download url for LLVM + clang (LINUX).
 const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
 
@@ -676,6 +678,14 @@ pub fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<RustupToolchai
             Ok(path) => RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &path.join("rust")),
             Err(err) => {
                 eprintln!("Could not download pre-built toolchain: {err:?}");
+
+                let root_cause = err.root_cause();
+                let root_description = format!("{root_cause:?}");
+                if root_description.contains("HTTP") && root_description.contains("api.github.com")
+                {
+                    eprintln!("\nHint: You can pass in a Github token via the GITHUB_TOKEN environment variable to avoid rate limits");
+                }
+
                 Err(err.context("Download of pre-built toolchain failed"))
             }
         }
@@ -697,14 +707,22 @@ impl RustupToolchain {
     ///
     /// Returns the path to the toolchain.
     fn find_by_name(name: &str) -> Result<Option<Self>, anyhow::Error> {
+        let name_prefix = format!("{name}\t");
         let out = Command::new("rustup")
             .args(["toolchain", "list", "--verbose"])
             .capture_stdout()?;
         let path_raw = out
             .lines()
-            .find(|line| line.trim().starts_with(name))
+            .find(|line| line.trim().starts_with(&name_prefix))
             .and_then(|line| line.strip_prefix(name))
-            .map(|line| line.trim());
+            .map(|line| {
+                let default_toolchain = "(default)";
+
+                let line = line.trim();
+                line.strip_prefix(default_toolchain)
+                    .map(|line| line.trim())
+                    .unwrap_or(line)
+            });
 
         if let Some(path) = path_raw {
             Ok(Some(Self {
