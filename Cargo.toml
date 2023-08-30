@@ -1,13 +1,13 @@
 [package]
 name = "cargo-wasix"
-version = "0.1.22"
-authors = ["John Sharratt <johnathan.sharratt@gmail.com"]
+version = "0.1.23"
+authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
 edition = "2018"
 license = "Apache-2.0 WITH LLVM-exception"
 repository = "https://github.com/wasix-org/cargo-wasix"
 readme = "README.md"
 description = """
-Subcommand for Cargo to easily build code for `wasm64-wasi`
+Subcommand for Cargo to easily build code for `wasm32-wasmer-wasi` and `wasm64-wasmer-wasi` targets; aka. WASIX targets.
 """
 exclude = ["cargo-wasix-*"]
 
