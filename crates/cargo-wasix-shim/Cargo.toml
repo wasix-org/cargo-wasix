@@ -5,6 +5,7 @@ edition = "2018"
 license = "Apache-2.0 WITH LLVM-exception"
 repository = "https://github.com/wasix-org/cargo-wasix"
 readme = "../../README.md"
+publish = false
 description = """
 Subcommand for Cargo to easily build code for `wasm64-wasi`
 """
@@ -21,3 +22,6 @@ locally-developed = []
 # NB: the `[features]` section must be last in this manifest to agree with
 # `weave.rs` as part of the assemble crate. The features section here is removed
 # when publishing to crates.io
+
+[package.metadata.dist]
+dist = false
