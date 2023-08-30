@@ -18,13 +18,7 @@ path = "src/main.rs"
 name = "cargo_wasix"
 
 [workspace]
-members = [
-  # These crates are not released and don't belong in the workspace
-  # 'crates/assemble',
-  # 'crates/cargo-wasix-shim',
-  'examples/markdown',
-  'examples/hello-world',
-]
+members = ['examples/markdown', 'examples/hello-world']
 exclude = ['tmp', 'target', "cargo-wasix-*"]
 
 
