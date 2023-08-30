@@ -3,6 +3,7 @@ name = "markdown"
 version = "0.1.0"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 edition = "2018"
+publish = false
 
 [lib]
 crate-type = ['cdylib']
@@ -10,3 +11,6 @@ crate-type = ['cdylib']
 [dependencies]
 wasm-bindgen = "0.2.50"
 pulldown-cmark = "0.8"
+
+[package.metadata.dist]
+dist = false

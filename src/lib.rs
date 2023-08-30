@@ -109,7 +109,7 @@ fn rmain(config: &mut Config) -> Result<()> {
                 None => String::new(),
             };
             println!("cargo-wasix {}{}", env!("CARGO_PKG_VERSION"), git_info);
-            std::process::exit(0);
+            std::process::exit(0)
         }
         _ => print_help(),
     };
@@ -310,7 +310,7 @@ pub const HELP: &str = include_str!("txt/help.txt");
 
 fn print_help() -> ! {
     println!("{}", HELP);
-    std::process::exit(0);
+    std::process::exit(0)
 }
 
 #[derive(Default, Debug)]
