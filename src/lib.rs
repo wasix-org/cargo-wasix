@@ -135,6 +135,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     } else {
         "wasm32-wasmer-wasi"
     };
+
     cargo.arg("--target").arg(target);
     if !no_message_format {
         cargo.arg("--message-format").arg("json-render-diagnostics");
@@ -167,7 +168,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     // execute everything at the end.
     //
     // Also note that we check here before we actually build that a runtime is
-    // present. We first check the CARGO_TARGET_WASM32_WASIX_RUNNER environement
+    // present. We first check the CARGO_TARGET_WASM32_WASMER_WASI_RUNNER environement
     // variable for a user-supplied runtime (path or executable) and use the
     // default, namely `wasmer`, if it is not set.
     let (wasix_runner, using_default) = env::var(&runner_env_var)
@@ -246,7 +247,9 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // Check the dependencies, if needed, before running cargo.
     if check_deps {
-        dependencies::check(config, target)?;
+        if let Err(err) = dependencies::check(config, target) {
+            config.warn(&format!("failed to check dependencies: {err}"));
+        }
     }
 
     // Run the cargo commands
@@ -358,11 +361,17 @@ enum CargoMessage {
 
 impl CargoBuild {
     fn enable_name_section(&self, profile: &Profile) -> bool {
-        profile.debuginfo.is_some() || self.manifest_config.wasm_name_section.unwrap_or(true)
+        match profile.debuginfo {
+            Some(0) | None => self.manifest_config.wasm_name_section.unwrap_or(true),
+            Some(_) => true,
+        }
     }
 
     fn enable_producers_section(&self, profile: &Profile) -> bool {
-        profile.debuginfo.is_some() || self.manifest_config.wasm_producers_section.unwrap_or(true)
+        match profile.debuginfo {
+            Some(0) | None => self.manifest_config.wasm_producers_section.unwrap_or(true),
+            Some(_) => true,
+        }
     }
 }
 
@@ -383,10 +392,12 @@ fn process_wasm(
         config.status("Processing", &temp.display().to_string());
     });
 
+    let should_generate_dwarf = !matches!(profile.debuginfo, Some(0) | None);
+
     let mut module = walrus::ModuleConfig::new()
         // If the `debuginfo` is configured then we leave in the debuginfo
         // sections.
-        .generate_dwarf(profile.debuginfo.is_some())
+        .generate_dwarf(should_generate_dwarf)
         .generate_name_section(build.enable_name_section(profile))
         .generate_producers_section(build.enable_producers_section(profile))
         .strict_validate(false)
@@ -419,10 +430,16 @@ fn run_wasm_opt(
     //
     // Additionally if no optimizations are enabled, no need to run `wasm-opt`,
     // we're not optimizing.
-    if profile.debuginfo.is_some() || profile.opt_level == "0" {
-        fs::write(wasm, bytes)?;
-        return Ok(());
-    }
+
+    // we should follow this logic but currently we want to run wasm-opt with asyncify pass for both debug and release builds
+    // match profile.debuginfo {
+    //     Some(0) | None => (),
+    //     _ if profile.opt_level == "0" => {
+    //         fs::write(wasm, bytes)?;
+    //         return Ok(());
+    //     }
+    //     _ => (),
+    // }
 
     // Allow explicitly disabling wasm-opt via `Cargo.toml`.
     if build.manifest_config.wasm_opt == Some(false) {
@@ -445,13 +462,29 @@ fn run_wasm_opt(
     cmd.arg("--enable-threads");
     cmd.arg("--enable-reference-types");
     cmd.arg("--no-validation");
-    cmd.arg("--strip-producers");
     cmd.arg("--asyncify");
 
-    if profile.debuginfo.is_some() || profile.opt_level == "0" {
-        cmd.arg("--debuginfo");
-    } else {
-        cmd.arg("--strip-debug");
+    if !build.enable_producers_section(profile) {
+        cmd.arg("--strip-producers");
+    }
+
+    match profile.debuginfo {
+        Some(0) | None => {
+            // release build
+            if build.enable_name_section(profile) {
+                cmd.arg("--debuginfo");
+            } else {
+                cmd.arg("--strip-debug");
+            }
+        }
+        Some(_) if profile.opt_level == "0" => {
+            // debug build
+            cmd.arg("--debuginfo");
+        }
+        _ => {
+            // release build
+            cmd.arg("--strip-debug");
+        }
     }
 
     run_or_download(
@@ -485,6 +518,7 @@ fn execute_cargo(cargo: &mut Command, config: &Config) -> Result<CargoBuild> {
         .map_err(|e| utils::hide_normal_process_exit(e, config))?;
 
     let mut build = CargoBuild::default();
+
     for line in json.lines() {
         if !line.starts_with('{') {
             println!("{}", line);
@@ -609,7 +643,7 @@ fn run_or_download(
 }
 
 fn install_wasm_opt(path: &ToolPath, config: &Config) -> Result<()> {
-    let tag = "version_109";
+    let tag = "version_113";
     let binaryen_url = |target: &str| {
         let mut url = "https://github.com/WebAssembly/binaryen/releases/download/".to_string();
         url.push_str(tag);
