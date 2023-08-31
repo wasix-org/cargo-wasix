@@ -18,7 +18,7 @@ Available for platforms:
 
 - `x86_64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
-- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
 
 You can install this Cargo subcommand via:
