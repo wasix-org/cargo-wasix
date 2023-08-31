@@ -7,8 +7,6 @@ See [wasix.org](https://wasix.org) for more.
 
 ## Installation
 
-You can install this Cargo subcommand via:
-
 > **Installation requires**
 > ‣ [Rust](https://www.rust-lang.org/tools/install) installed via [rustup](https://rustup.rs/)
 
@@ -22,6 +20,8 @@ Available for platforms:
 - `x86_64-apple-darwin`
 - `x86_64-apple-darwin`
 - `x86_64-pc-windows-msvc`
+
+You can install this Cargo subcommand via:
 
 ### Cargo Install
 
