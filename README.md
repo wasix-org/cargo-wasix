@@ -9,7 +9,8 @@ See [wasix.org](https://wasix.org) for more.
 
 You can install this Cargo subcommand via:
 
-> Note: Installation requires [Rust](<(https://www.rust-lang.org/tools/install)>) be installed on your system.
+> **Installation requires**
+> ‣ [Rust](https://www.rust-lang.org/tools/install) installed via [rustup](https://rustup.rs/)
 
 ### Information
 
@@ -29,6 +30,8 @@ $ cargo install cargo-wasix
 ```
 
 ### Cargo Binstall
+
+> [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall) provides a low-complexity mechanism for installing rust binaries as an alternative to building from source (via `cargo install`) or manually downloading packages.
 
 > Uses pre-built binaries.
 
@@ -113,7 +116,7 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ## License
 
 This project is license under the Apache 2.0 license with the LLVM exception.
-See [LICENSE] for more details.
+See [LICENSE](https://github.com/wasix-org/cargo-wasix/blob/main/LICENSE) for more details.
 
 ### Contribution
 
