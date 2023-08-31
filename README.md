@@ -7,16 +7,57 @@ See [wasix.org](https://wasix.org) for more.
 
 ## Installation
 
-To install this Cargo subcommand, first you'll want to [install
-Rust](https://www.rust-lang.org/tools/install) and then you'll execute:
+> **Installation requires**
+> ‣ [Rust](https://www.rust-lang.org/tools/install) installed via [rustup](https://rustup.rs/)
 
-```
+### Information
+
+This subcommand is available on [crates.io](https://crates.io/crates/cargo-wasix)
+
+Available for platforms:
+
+- `x86_64-unknown-linux-gnu`
+- `x86_64-apple-darwin`
+- `aarch64-apple-darwin`
+- `x86_64-pc-windows-msvc`
+
+You can install this Cargo subcommand via:
+
+### Cargo Install
+
+```shell
 $ cargo install cargo-wasix
 ```
 
-After that you can verify it works via:
+### Cargo Binstall
 
+> [`cargo binstall`](https://github.com/cargo-bins/cargo-binstall) provides a low-complexity mechanism for installing rust binaries as an alternative to building from source (via `cargo install`) or manually downloading packages.
+
+> Uses pre-built binaries.
+
+```shell
+$ cargo binstall cargo-wasix
 ```
+
+### Install from install script
+
+> Uses pre-built binaries.
+
+#### For Linux and macOS
+
+```shell
+$ curl --proto '=https' --tlsv1.2 -LsSf https://github.com/wasix-org/cargo-wasix/releases/latest/download/cargo-wasix-installer.sh | sh
+```
+
+#### For Windows
+
+```shell
+irm https://github.com/wasix-org/cargo-wasix/releases/latest/download/cargo-wasix-installer.ps1 | iex
+```
+
+### Verify Installation
+
+```shell
 $ cargo wasix --version
 ```
 
@@ -75,7 +116,7 @@ test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ## License
 
 This project is license under the Apache 2.0 license with the LLVM exception.
-See [LICENSE] for more details.
+See [LICENSE](https://github.com/wasix-org/cargo-wasix/blob/main/LICENSE) for more details.
 
 ### Contribution
 
