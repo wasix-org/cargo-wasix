@@ -1,7 +1,7 @@
 [package]
 name = "cargo-wasix-shim"
 version = "0.0.0"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0 WITH LLVM-exception"
 repository = "https://github.com/wasix-org/cargo-wasix"
 readme = "../../README.md"
