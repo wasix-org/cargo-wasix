@@ -124,6 +124,15 @@ test tests::it_works ... ok
 test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
+### Update/re-download the toolchain
+
+If your toolchain stops working, or you want to update to the latest version,
+you can run the following command to re-download the lastest release:
+
+```
+cargo wasix download-toolchain
+```
+
 ## License
 
 This project is license under the Apache 2.0 license with the LLVM exception.
