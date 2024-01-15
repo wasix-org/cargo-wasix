@@ -10,16 +10,27 @@ See [wasix.org](https://wasix.org) for more.
 > **Installation requires**
 > ‣ [Rust](https://www.rust-lang.org/tools/install) installed via [rustup](https://rustup.rs/)
 
+
 ### Information
 
 This subcommand is available on [crates.io](https://crates.io/crates/cargo-wasix)
 
-Available for platforms:
+Available platforms:
 
 - `x86_64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
+
+
+<br />
+
+> [!WARNING]
+> The installation methods below will not immediately install the `wasix` Rust toolchain.
+Instead, the toolchain will automatically be downloaded on demand when you run commands like `cargo wasix {check,build,...}`.
+
+<br />
+
 
 You can install this Cargo subcommand via:
 
