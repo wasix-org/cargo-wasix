@@ -820,29 +820,29 @@ WARNING: building takes a long time!"#
     #[cfg(target_os = "windows")]
     let rust_cmd = "rustc.exe";
 
-    // let rust_sysroot = Command::new(rust_cmd)
-    //     .arg(format!("+{}", toolchain.name))
-    //     .arg("--print")
-    //     .arg("sysroot")
-    //     .capture_stdout()
-    //     .map(|out| PathBuf::from(out.trim()))
-    //     .context("Could not execute rustc")?;
-    // assert_eq!(toolchain.path, rust_sysroot);
+    let rust_sysroot = Command::new(rust_cmd)
+        .arg(format!("+{}", toolchain.name))
+        .arg("--print")
+        .arg("sysroot")
+        .capture_stdout()
+        .map(|out| PathBuf::from(out.trim()))
+        .context("Could not execute rustc")?;
+    assert_eq!(toolchain.path, rust_sysroot);
 
-    // let lib_name = if is64bit {
-    //     "lib/rustlib/wasm64-wasmer-wasi"
-    // } else {
-    //     "lib/rustlib/wasm32-wasmer-wasi"
-    // };
-    // let lib_dir = rust_sysroot.join(lib_name);
-    // if !lib_dir.exists() {
-    //     bail!(
-    //         "Invalid wasix rustup toolchain {} at {}: {} does not exist",
-    //         toolchain.name,
-    //         toolchain.path.display(),
-    //         lib_dir.display()
-    //     );
-    // }
+    let lib_name = if is64bit {
+        "lib/rustlib/wasm64-wasmer-wasi"
+    } else {
+        "lib/rustlib/wasm32-wasmer-wasi"
+    };
+    let lib_dir = rust_sysroot.join(lib_name);
+    if !lib_dir.exists() {
+        bail!(
+            "Invalid wasix rustup toolchain {} at {}: {} does not exist",
+            toolchain.name,
+            toolchain.path.display(),
+            lib_dir.display()
+        );
+    }
     Ok(toolchain)
 }
 
