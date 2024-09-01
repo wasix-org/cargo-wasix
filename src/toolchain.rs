@@ -531,7 +531,11 @@ struct GithubAsset {
 }
 
 /// Download a pre-built toolchain from Github releases.
-fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBuf, anyhow::Error> {
+fn download_toolchain(
+    target: &str,
+    toolchains_root_dir: &Path,
+    version: String,
+) -> Result<PathBuf, anyhow::Error> {
     let mut headers = HeaderMap::new();
 
     // Use api token if specified via env var.
@@ -553,9 +557,16 @@ fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBu
     let repo = RUST_REPO
         .trim_start_matches("https://github.com/")
         .trim_end_matches(".git");
-    let release_url = format!("https://api.github.com/repos/{repo}/releases/latest");
 
-    eprintln!("Finding latest release... ({release_url})...");
+    let postfix = if version == "latest" {
+        version.clone()
+    } else {
+        format!("tags/{version}")
+    };
+
+    let release_url = format!("https://api.github.com/repos/{repo}/releases/{postfix}");
+
+    eprintln!("Finding {version} release... ({release_url})...");
 
     let release: GithubReleaseData = client
         .get(&release_url)
@@ -672,9 +683,12 @@ fn download_toolchain(target: &str, toolchains_root_dir: &Path) -> Result<PathBu
 /// toolchain locally otherwise.
 ///
 /// Returns the path to the toolchain.
-pub fn install_prebuilt_toolchain(toolchain_dir: &Path) -> Result<RustupToolchain, anyhow::Error> {
+pub fn install_prebuilt_toolchain(
+    toolchain_dir: &Path,
+    version: String,
+) -> Result<RustupToolchain, anyhow::Error> {
     if let Some(target) = guess_host_target() {
-        match download_toolchain(target, toolchain_dir) {
+        match download_toolchain(target, toolchain_dir, version) {
             Ok(path) => RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &path.join("rust")),
             Err(err) => {
                 eprintln!("Could not download pre-built toolchain: {err:?}");
@@ -804,7 +818,7 @@ pub fn ensure_toolchain(config: &Config, is64bit: bool) -> Result<RustupToolchai
     let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
         chain
     } else if !config.is_offline {
-        install_prebuilt_toolchain(&Config::toolchain_dir()?)?
+        install_prebuilt_toolchain(&Config::toolchain_dir()?, "latest".to_owned())?
     } else {
         bail!(
             r#"
@@ -856,7 +870,8 @@ mod tests {
         if tmp_dir.is_dir() {
             std::fs::remove_dir_all(&tmp_dir).unwrap_or_default();
         }
-        let root = download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir).unwrap();
+        let root =
+            download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir, "latest".to_owned()).unwrap();
         let dir = root.join("rust");
 
         #[cfg(not(target_os = "windows"))]
