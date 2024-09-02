@@ -6,8 +6,7 @@
 //! * Build the whole toolchain
 
 use std::{
-    path::{Path, PathBuf},
-    process::Command,
+    fmt::Display, path::{Path, PathBuf}, process::Command
 };
 
 use anyhow::{bail, Context};
@@ -530,11 +529,42 @@ struct GithubAsset {
     name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ToolchainSpec {
+    Latest,
+    Version(String),
+}
+
+impl Display for ToolchainSpec {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ToolchainSpec::Latest => write!(f, "latest"),
+            ToolchainSpec::Version(v) => write!(f, "{v}"),
+        }
+    }
+}
+
+impl From<String> for ToolchainSpec {
+    fn from(value: String) -> Self {
+        if value == "latest" {
+            ToolchainSpec::Latest
+        } else {
+            ToolchainSpec::Version(value)
+        }
+    }
+}
+
+impl ToolchainSpec {
+    pub fn is_latest(&self) -> bool {
+        *self == ToolchainSpec::Latest
+    }
+}
+
 /// Download a pre-built toolchain from Github releases.
 fn download_toolchain(
     target: &str,
     toolchains_root_dir: &Path,
-    version: String,
+    toolchain_spec: ToolchainSpec,
 ) -> Result<PathBuf, anyhow::Error> {
     let mut headers = HeaderMap::new();
 
@@ -558,15 +588,15 @@ fn download_toolchain(
         .trim_start_matches("https://github.com/")
         .trim_end_matches(".git");
 
-    let postfix = if version == "latest" {
-        version.clone()
+    let postfix = if toolchain_spec.is_latest() {
+        format!("{toolchain_spec}")
     } else {
-        format!("tags/{version}")
+        format!("tags/{toolchain_spec}")
     };
 
     let release_url = format!("https://api.github.com/repos/{repo}/releases/{postfix}");
 
-    eprintln!("Finding {version} release... ({release_url})...");
+    eprintln!("Finding {toolchain_spec} release... ({release_url})...");
 
     let release: GithubReleaseData = client
         .get(&release_url)
@@ -685,10 +715,10 @@ fn download_toolchain(
 /// Returns the path to the toolchain.
 pub fn install_prebuilt_toolchain(
     toolchain_dir: &Path,
-    version: String,
+    toolchain_spec: ToolchainSpec,
 ) -> Result<RustupToolchain, anyhow::Error> {
     if let Some(target) = guess_host_target() {
-        match download_toolchain(target, toolchain_dir, version) {
+        match download_toolchain(target, toolchain_dir, toolchain_spec) {
             Ok(path) => RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &path.join("rust")),
             Err(err) => {
                 eprintln!("Could not download pre-built toolchain: {err:?}");
@@ -818,7 +848,7 @@ pub fn ensure_toolchain(config: &Config, is64bit: bool) -> Result<RustupToolchai
     let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
         chain
     } else if !config.is_offline {
-        install_prebuilt_toolchain(&Config::toolchain_dir()?, "latest".to_owned())?
+        install_prebuilt_toolchain(&Config::toolchain_dir()?, ToolchainSpec::Latest)?
     } else {
         bail!(
             r#"
@@ -871,7 +901,7 @@ mod tests {
             std::fs::remove_dir_all(&tmp_dir).unwrap_or_default();
         }
         let root =
-            download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir, "latest".to_owned()).unwrap();
+            download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir, ToolchainSpec::Latest).unwrap();
         let dir = root.join("rust");
 
         #[cfg(not(target_os = "windows"))]

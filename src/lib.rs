@@ -183,8 +183,8 @@ fn rmain(config: &mut Config) -> Result<()> {
             let version = args
                 .first()
                 .cloned()
-                .map(|v| v.into_string().unwrap())
-                .unwrap_or("latest".to_owned());
+                .map(|v| v.into_string().unwrap().into())
+                .unwrap_or(toolchain::ToolchainSpec::Latest);
             let _lock = Config::acquire_lock()?;
             let chain = toolchain::install_prebuilt_toolchain(&Config::toolchain_dir()?, version)?;
             config.info(&format!(
