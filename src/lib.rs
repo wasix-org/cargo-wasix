@@ -140,7 +140,9 @@ fn rmain(config: &mut Config) -> Result<()> {
     if !no_message_format {
         cargo.arg("--message-format").arg("json-render-diagnostics");
     }
-    for arg in args {
+
+    let args = args.collect::<Vec<_>>();
+    for arg in args.clone() {
         if let Some(arg) = arg.to_str() {
             if arg.starts_with("--verbose") || arg.starts_with("-v") {
                 config.set_verbose(true);
@@ -178,8 +180,13 @@ fn rmain(config: &mut Config) -> Result<()> {
     let mut check_deps = false;
     match subcommand {
         Subcommand::DownloadToolchain => {
+            let version = args
+                .first()
+                .cloned()
+                .map(|v| v.into_string().unwrap().into())
+                .unwrap_or(toolchain::ToolchainSpec::Latest);
             let _lock = Config::acquire_lock()?;
-            let chain = toolchain::install_prebuilt_toolchain(&Config::toolchain_dir()?)?;
+            let chain = toolchain::install_prebuilt_toolchain(&Config::toolchain_dir()?, version)?;
             config.info(&format!(
                 "Toolchain {} downloaded and installed to path {}.\nThe wasix toolchain is now ready to use.",
                 chain.name,
