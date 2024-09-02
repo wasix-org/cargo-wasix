@@ -6,7 +6,9 @@
 //! * Build the whole toolchain
 
 use std::{
-    fmt::Display, path::{Path, PathBuf}, process::Command
+    fmt::Display,
+    path::{Path, PathBuf},
+    process::Command,
 };
 
 use anyhow::{bail, Context};
@@ -900,8 +902,8 @@ mod tests {
         if tmp_dir.is_dir() {
             std::fs::remove_dir_all(&tmp_dir).unwrap_or_default();
         }
-        let root =
-            download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir, ToolchainSpec::Latest).unwrap();
+        let root = download_toolchain("x86_64-unknown-linux-gnu", &tmp_dir, ToolchainSpec::Latest)
+            .unwrap();
         let dir = root.join("rust");
 
         #[cfg(not(target_os = "windows"))]
