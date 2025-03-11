@@ -22,7 +22,7 @@ use crate::{
 /// Custom rust repository.
 const RUST_REPO: &str = "https://github.com/wasix-org/rust.git";
 /// Branch to use in the custom Rust repo.
-const RUST_BRANCH: &str = "wasix";
+const RUST_BRANCH: &str = "wasix-1.82.0-charmitro";
 
 const RUSTUP_TOOLCHAIN_NAME: &str = "wasix";
 
@@ -243,7 +243,7 @@ fn build_libc(
 #[cfg(target_os = "linux")]
 fn build_libc(
     build_root: &Path,
-    git_tag: Option<String>,
+    _git_tag: Option<String>,
     update_repo: bool,
 ) -> Result<(), anyhow::Error> {
     use crate::utils::copy_path;
@@ -252,7 +252,7 @@ fn build_libc(
 
     ensure_binary("git", &["--version"])?;
 
-    let git_tag = git_tag.as_deref().unwrap_or("main");
+    let git_tag = "wasm64-rust-toolchain";
 
     std::fs::create_dir_all(build_root)
         .with_context(|| format!("Could not create directory: {}", build_root.display()))?;
@@ -453,7 +453,7 @@ wasi-root = "{sysroot64}"
     cmd.env("GITHUB_ACTIONS", "false");
     cmd.args(["x.py", "build"]);
     if let Some(triple) = host_triple {
-        cmd.args(["--host", triple]);
+        cmd.args(["--target", triple]);
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
@@ -465,7 +465,7 @@ wasi-root = "{sysroot64}"
     cmd.arg(rust_dir.join("x.py"))
         .args(["build", "--stage", "2"]);
     if let Some(triple) = host_triple {
-        cmd.args(["--host", triple]);
+        cmd.args(["--target", triple]);
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
