@@ -448,10 +448,8 @@ wasi-root = "{sysroot64}"
     let python_cmd = if has_python3 { "python3" } else { "python" };
 
     let mut cmd = Command::new(python_cmd);
-    // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
-    // things that break the build.
     cmd.env("GITHUB_ACTIONS", "false");
-    cmd.args(["x.py", "build"]);
+    cmd.args(["x.py", "build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi"]);
     if let Some(triple) = host_triple {
         cmd.args(["--target", triple]);
     }
