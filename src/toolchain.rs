@@ -463,7 +463,7 @@ wasi-root = "{sysroot64}"
     cmd.arg(rust_dir.join("x.py"))
         .args(["build", "--stage", "2"]);
     if let Some(triple) = host_triple {
-        cmd.args(["--target", triple]);
+        cmd.args(["--host", triple]);
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
