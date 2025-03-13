@@ -449,6 +449,7 @@ wasi-root = "{sysroot64}"
 
     let mut cmd = Command::new(python_cmd);
     cmd.env("GITHUB_ACTIONS", "false");
+    cmd.env("BOOTSTRAP_SKIP_TARGET_SANITY", "1");
     cmd.args(["x.py", "build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi"]);
     if let Some(triple) = host_triple {
         cmd.args(["--target", triple]);
