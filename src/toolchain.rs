@@ -461,6 +461,7 @@ wasi-root = "{sysroot64}"
     // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
     // things that break the build.
     cmd.env("GITHUB_ACTIONS", "false");
+    cmd.env("BOOTSTRAP_SKIP_TARGET_SANITY", "1");
     cmd.arg(rust_dir.join("x.py"))
         .args(["build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi", "--stage", "2"]);
     if let Some(triple) = host_triple {
