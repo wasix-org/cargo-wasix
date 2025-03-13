@@ -452,7 +452,7 @@ wasi-root = "{sysroot64}"
     cmd.env("BOOTSTRAP_SKIP_TARGET_SANITY", "1");
     cmd.args(["x.py", "build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi"]);
     if let Some(triple) = host_triple {
-        cmd.args(["--target", triple]);
+        cmd.args(["--host", triple]);
     }
     cmd.current_dir(&rust_dir).run_verbose()?;
 
@@ -462,7 +462,7 @@ wasi-root = "{sysroot64}"
     // things that break the build.
     cmd.env("GITHUB_ACTIONS", "false");
     cmd.arg(rust_dir.join("x.py"))
-        .args(["build", "--stage", "2"]);
+        .args(["build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi", "--stage", "2"]);
     if let Some(triple) = host_triple {
         cmd.args(["--host", triple]);
     }
