@@ -450,7 +450,12 @@ wasi-root = "{sysroot64}"
     let mut cmd = Command::new(python_cmd);
     cmd.env("GITHUB_ACTIONS", "false");
     cmd.env("BOOTSTRAP_SKIP_TARGET_SANITY", "1");
-    cmd.args(["x.py", "build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi"]);
+    cmd.args([
+        "x.py",
+        "build",
+        "--target",
+        "wasm32-wasmer-wasi,wasm64-wasmer-wasi",
+    ]);
     if let Some(triple) = host_triple {
         cmd.args(["--host", triple]);
     }
@@ -462,8 +467,13 @@ wasi-root = "{sysroot64}"
     // things that break the build.
     cmd.env("GITHUB_ACTIONS", "false");
     cmd.env("BOOTSTRAP_SKIP_TARGET_SANITY", "1");
-    cmd.arg(rust_dir.join("x.py"))
-        .args(["build", "--target", "wasm32-wasmer-wasi,wasm64-wasmer-wasi", "--stage", "2"]);
+    cmd.arg(rust_dir.join("x.py")).args([
+        "build",
+        "--target",
+        "wasm32-wasmer-wasi,wasm64-wasmer-wasi",
+        "--stage",
+        "2",
+    ]);
     if let Some(triple) = host_triple {
         cmd.args(["--host", triple]);
     }
@@ -635,8 +645,26 @@ fn download_toolchain(
 
     let toolchain_dir = toolchains_root_dir.join(format!("{target}_{}", release.tag_name));
     if toolchain_dir.is_dir() {
+        // Check if the directory contains a valid toolchain
+        let rust_dir = toolchain_dir.join("rust");
+        let out_dir = toolchain_dir.join("sysroot");
+
+        #[cfg(not(target_os = "windows"))]
+        let rustc_exe = "rustc";
+        #[cfg(target_os = "windows")]
+        let rustc_exe = "rustc.exe";
+
+        let rustc_path = rust_dir.join("bin").join(rustc_exe);
+        let sysroot32 = out_dir.join("sysroot32");
+        let sysroot64 = out_dir.join("sysroot64");
+
+        if rustc_path.exists() && sysroot32.exists() && sysroot64.exists() {
+            eprintln!("Using existing toolchain at {}", toolchain_dir.display());
+            return Ok(toolchain_dir);
+        }
+
         eprintln!(
-            "Toolchain path {} already exists - deleting existing files!",
+            "Toolchain path {} exists but is invalid - deleting existing files!",
             toolchain_dir.display()
         );
         std::fs::remove_dir_all(&toolchain_dir)?;
