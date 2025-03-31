@@ -753,13 +753,16 @@ impl RustupToolchain {
     ///
     /// Returns the path to the toolchain.
     fn find_by_name(name: &str) -> Result<Option<Self>, anyhow::Error> {
-        let name_prefix = format!("{name}\t");
         let out = Command::new("rustup")
             .args(["toolchain", "list", "--verbose"])
             .capture_stdout()?;
         let path_raw = out
             .lines()
-            .find(|line| line.trim().starts_with(&name_prefix))
+            .find(|line| {
+                let line = line.trim_start();
+                line.starts_with(name)
+                    && matches!(line.chars().nth(name.len()), Some(c) if c.is_whitespace())
+            })
             .and_then(|line| line.strip_prefix(name))
             .map(|line| {
                 let default_toolchain = "(default)";
