@@ -22,8 +22,7 @@ impl Config {
                 ColorChoice::Never
             },
             // Offline env var disables toolchain downloads and update checks.
-            is_offline: std::env::var("CARGO_WASIX_OFFLINE")
-                .map_or(false, |v| v == "1" || v == "true"),
+            is_offline: std::env::var("CARGO_WASIX_OFFLINE").is_ok_and(|v| v == "1" || v == "true"),
         }
     }
 

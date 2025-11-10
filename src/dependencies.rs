@@ -90,7 +90,7 @@ fn download_known_incompatible_crates(
         static INCLUDED_CRATES: &str = include_str!("../incompatible_crates/data.json");
         // NOTE: we don't cache this file as this may be really outdated.
         return serde_json::from_str(INCLUDED_CRATES)
-            .with_context(|| format!("failed to deserialize incompatible crates"));
+            .with_context(|| "failed to deserialize incompatible crates".to_string());
     }
 
     let url = KNOWN_INCOMPATIBLE_CRATES_URL;
@@ -101,7 +101,7 @@ fn download_known_incompatible_crates(
     let response = utils::get(url, DOWNLOAD_TIMEOUT)?;
     let incompatible_crates = response
         .json()
-        .with_context(|| format!("failed to deserialize incompatible crates"))?;
+        .with_context(|| "failed to deserialize incompatible crates".to_string())?;
 
     let dir = path.parent().unwrap_or(path);
     fs::create_dir_all(dir)

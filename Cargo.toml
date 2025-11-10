@@ -1,6 +1,6 @@
 [package]
 name = "cargo-wasix"
-version = "0.1.25"
+version = "0.1.26"
 authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
 edition = "2021"
 license = "Apache-2.0 WITH LLVM-exception"
@@ -45,7 +45,6 @@ tar = "0.4"
 tempfile = "3"
 termcolor = "1.0.5"
 toml = "0.5"
-walrus = "0.19"
 which = "4.0"
 
 [dev-dependencies]
