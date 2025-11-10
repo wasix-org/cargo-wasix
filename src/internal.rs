@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime};
 const UPDATE_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub fn main(args: &[OsString], config: &Config) -> Result<()> {
-    match args.get(0).and_then(|s| s.to_str()) {
+    match args.first().and_then(|s| s.to_str()) {
         Some("clean") => clean(config),
         Some("update-check") => update_check(config),
         Some(other) => bail!("unsupported `self` command: {}", other),
