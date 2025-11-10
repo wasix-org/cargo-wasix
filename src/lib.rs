@@ -100,7 +100,11 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Run => "run",
     });
 
-    let manifest_config = read_manifest_config()?;
+    let manifest_config = if matches!(subcommand, Subcommand::DownloadToolchain) {
+        Default::default()
+    } else {
+        read_manifest_config()?
+    };
 
     let target = if manifest_config.dl.unwrap_or(false) {
         "wasm32-wasmer-wasi-dl"
@@ -358,12 +362,7 @@ impl CargoBuild {
     }
 }
 
-/// Process a wasm file that doesn't use `wasm-bindgen`, using `walrus` instead.
-///
-/// This will load up the module and do things like:
-///
-/// * Unconditionally demangle all Rust function names.
-/// * Use `profile` to optionally drop debug information
+/// Process a wasm file that doesn't use `wasm-bindgen`.
 fn process_wasm(
     wasm: &Path,
     temp: &Path,

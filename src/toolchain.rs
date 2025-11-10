@@ -308,10 +308,8 @@ impl RustupToolchain {
     }
 }
 
-/// Makes sure that the wasix toolchain is available.
-///
-/// Tries to download a pre-built toolchain if possible, and builds the toolchain
-/// locally otherwise.
+/// Makes sure that the wasix toolchain is available by
+/// trying to download a pre-built toolchain if possible.
 ///
 /// Also checks that the toolchain is correctly installed.
 ///
