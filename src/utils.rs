@@ -11,16 +11,6 @@ use std::process::{Command, ExitStatus, Output, Stdio};
 use std::time::Duration;
 use std::{env, fmt};
 
-/// Make sure a binary exists and runs with the given arguments.
-pub fn ensure_binary(command: &str, args: &[&str]) -> Result<(), anyhow::Error> {
-    Command::new(command)
-        .args(args)
-        .stdout(std::process::Stdio::piped())
-        .run_verbose()
-        .with_context(|| format!("Could not find or execute binary: {command}"))?;
-    Ok(())
-}
-
 pub trait CommandExt {
     fn as_command_mut(&mut self) -> &mut Command;
 

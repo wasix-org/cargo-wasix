@@ -37,7 +37,7 @@ jobs:
       - name: Setup Wasmer
         uses: wasmerio/setup-wasmer@v2
         with:
-          version: "v4.1.1"
+          version: "v6.1.0"
 
       - name: test
         shell: bash

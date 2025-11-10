@@ -1,9 +1,5 @@
-//! Implements functionality for downloading/installing or building the
+//! Implements functionality for downloading/installing the
 //! wasix toolchain (mainly RUSTC).
-//!
-//! Mainly:
-//! * Download/install pre-built toolchains.
-//! * Build the whole toolchain
 
 use std::{
     fmt::Display,
@@ -14,488 +10,12 @@ use std::{
 use anyhow::{bail, Context};
 use reqwest::header::HeaderMap;
 
-use crate::{
-    config::Config,
-    utils::{ensure_binary, CommandExt},
-};
+use crate::{config::Config, utils::CommandExt};
 
 /// Custom rust repository.
 const RUST_REPO: &str = "https://github.com/wasix-org/rust.git";
-/// Branch to use in the custom Rust repo.
-const RUST_BRANCH: &str = "wasix";
 
 const RUSTUP_TOOLCHAIN_NAME: &str = "wasix";
-
-#[cfg(target_os = "linux")]
-const LIBC_REPO: &str = "https://github.com/wasix-org/wasix-libc.git";
-
-#[cfg(target_os = "linux")]
-/// Download url for LLVM + clang (LINUX).
-const LLVM_LINUX_SOURCE: &str = "https://github.com/llvm/llvm-project/releases/download/llvmorg-15.0.2/clang+llvm-15.0.2-x86_64-unknown-linux-gnu-rhel86.tar.xz";
-
-/// Options for a toolchain build.
-pub struct BuildToochainOptions {
-    root: PathBuf,
-    build_libc: bool,
-    build_rust: bool,
-    rust_host_triple: Option<String>,
-
-    update_repos: bool,
-}
-
-impl BuildToochainOptions {
-    pub fn from_env() -> Result<Self, anyhow::Error> {
-        // Read components to build from env var.
-        let (build_libc, build_rust) = match std::env::var("WASIX_COMPONENTS")
-            .unwrap_or_default()
-            .as_str()
-        {
-            "" | "all" => (true, true),
-            "libc" => (true, false),
-            "rust" => (false, true),
-            other => {
-                bail!("Invalid env var WASIX_COMPONENTS with value '{other}' - expected 'all' or 'libc'");
-            }
-        };
-
-        let root = if let Ok(dir) = std::env::var("WASIX_BUILD_DIR") {
-            PathBuf::from(dir)
-        } else {
-            #[allow(deprecated)]
-            std::env::home_dir()
-                .context("Could not determine home dir. set WASIX_BUILD_DIR env var!")?
-                .join(".wasix")
-        };
-
-        let rust_host_triple = std::env::var("WASIX_RUST_HOST").ok();
-        let update_repos = std::env::var("WASIX_NO_UPDATE_REPOS").is_err();
-
-        Ok(Self {
-            root,
-            build_rust,
-            build_libc,
-            rust_host_triple,
-            update_repos,
-        })
-    }
-}
-
-fn ensure_libc_dir_valid(dir: &Path) -> Result<(), anyhow::Error> {
-    // Make sure sysroot dirs exist.
-    let dir32 = dir.join("sysroot32");
-    let archive32 = dir32.join("lib/wasm32-wasi/libc.a");
-
-    let dir64 = dir.join("sysroot64");
-    let archive64 = dir64.join("lib/wasm64-wasi/libc.a");
-
-    if !dir32.is_dir() {
-        bail!(
-            "Invalid libc dir: directory does not exit: '{}'",
-            dir32.display()
-        );
-    }
-    if !archive32.is_file() {
-        bail!(
-            "Invalid libc dir: archive does not exit: '{}'",
-            archive32.display()
-        );
-    }
-
-    if !dir64.is_dir() {
-        bail!(
-            "Invalid libc dir: directory does not exit: '{}'",
-            dir64.display()
-        );
-    }
-    if !archive64.is_file() {
-        bail!(
-            "Invalid libc dir: archive does not exit: '{}'",
-            archive64.display()
-        );
-    }
-
-    Ok(())
-}
-
-/// Build the wasix toolchain.
-///
-/// Returns the toolchain directory path.
-pub fn build_toolchain(
-    options: BuildToochainOptions,
-) -> Result<Option<RustBuildOutput>, anyhow::Error> {
-    eprintln!("Building the wasix toolchain...");
-    eprintln!("WARNING: this could take a long time and use a lot of disk space!");
-
-    if ensure_binary("apt-get", &["--version"]).is_ok() {
-        setup_apt()?;
-    }
-
-    let libc_dir = options.root.join("wasix-libc");
-    if options.build_libc {
-        build_libc(&options.root, None, options.update_repos)?;
-        ensure_libc_dir_valid(&libc_dir).context("libc build failed")?;
-    } else {
-        eprintln!("Skipping libc build!");
-        ensure_libc_dir_valid(&libc_dir)
-            .context("libc build skipped, but specified path invalid")?;
-    }
-
-    if !options.build_rust {
-        return Ok(None);
-    }
-
-    let out = build_rust(
-        &options.root,
-        None,
-        options.rust_host_triple.as_deref(),
-        options.update_repos,
-    )?;
-
-    RustupToolchain::link(RUSTUP_TOOLCHAIN_NAME, &out.toolchain_dir)?;
-
-    Ok(Some(out))
-}
-
-/// Install basic required packages on Debian based systems.
-fn setup_apt() -> Result<(), anyhow::Error> {
-    let have_sudo = ensure_binary("sudo", &["--version"]).is_ok();
-
-    let args = &[
-        "install",
-        "-y",
-        // Packages.
-        "curl",
-        "xz-utils",
-        "build-essential",
-        "git",
-        "python3",
-    ];
-
-    if have_sudo {
-        Command::new("sudo")
-            .arg("apt-get")
-            .args(args)
-            .run_verbose()?;
-    } else {
-        Command::new("apt-get").args(args).run_verbose()?;
-    }
-
-    Ok(())
-}
-
-/// Initialize a Git repo.
-///
-/// Clone if it doesn't exist yet, otherwise update the branch/tag.
-fn prepare_git_repo(
-    source: &str,
-    tag: &str,
-    path: &Path,
-    all_submodules: bool,
-) -> Result<(), anyhow::Error> {
-    eprintln!("Preparing git repo {source} with tag/branch {tag}");
-    ensure_binary("git", &["--version"])?;
-
-    if !path.join(".git").is_dir() {
-        Command::new("git")
-            .args([
-                "clone",
-                // "--depth",
-                // "1",
-                // "--recurse-submodules",
-                // "--shallow-submodules",
-                source,
-            ])
-            .arg(path)
-            .run_verbose()?;
-    }
-    Command::new("git")
-        .args(["fetch", "origin", tag])
-        .current_dir(path)
-        .run_verbose()?;
-    Command::new("git")
-        .args(["reset", "--hard", tag])
-        .current_dir(path)
-        .run_verbose()?;
-
-    if all_submodules {
-        Command::new("git")
-            .args(["submodule", "update", "--init", "--recursive", "--progress"]) // added progress as llvm takes a very long time
-            .current_dir(path)
-            .run_verbose()?;
-    }
-
-    eprintln!("Git repo ready at {}", path.display());
-
-    Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn build_libc(
-    _build_root: &Path,
-    _git_tag: Option<String>,
-    _update_repo: bool,
-) -> Result<(), anyhow::Error> {
-    anyhow::bail!("libc builds are only supported on Linux");
-}
-
-/// Build the wasix-libc sysroot.
-// Currently only works on Linux.
-#[cfg(target_os = "linux")]
-fn build_libc(
-    build_root: &Path,
-    git_tag: Option<String>,
-    update_repo: bool,
-) -> Result<(), anyhow::Error> {
-    use crate::utils::copy_path;
-
-    eprintln!("Building wasix-libc...");
-
-    ensure_binary("git", &["--version"])?;
-
-    let git_tag = git_tag.as_deref().unwrap_or("main");
-
-    std::fs::create_dir_all(build_root)
-        .with_context(|| format!("Could not create directory: {}", build_root.display()))?;
-    let libc_dir = build_root.join("wasix-libc");
-
-    if update_repo {
-        prepare_git_repo(LIBC_REPO, git_tag, &libc_dir, true)?;
-    }
-
-    eprintln!("Ensuring LLVM...");
-    let llvm_dir = build_root.join("llvm-15");
-    if !llvm_dir.join("bin").join("clang").is_file() {
-        eprintln!("Downloading LLVM...");
-        std::fs::create_dir_all(&llvm_dir)?;
-
-        let archive_path = libc_dir.join("llvm.tar.xz");
-
-        Command::new("curl")
-            .args(["-L", "-o"])
-            .arg(&archive_path)
-            .arg(LLVM_LINUX_SOURCE)
-            .run_verbose()?;
-
-        eprintln!("Extracting LLVM...");
-        Command::new("tar")
-            .args(["xJf"])
-            .arg(&archive_path)
-            .arg("-C")
-            .arg(&llvm_dir)
-            .args(["--strip-components", "1"])
-            .run_verbose()?;
-
-        std::fs::remove_file(&archive_path).ok();
-
-        eprintln!("Downloaded LLVM to {}", llvm_dir.display());
-    }
-    // Sanity check for clang.
-    Command::new(llvm_dir.join("bin").join("clang"))
-        .arg("--version")
-        .run_verbose()?;
-
-    let original_path_env = std::env::var("PATH")?;
-    let path = format!(
-        "{}:{}",
-        llvm_dir.join("bin").to_str().unwrap(),
-        original_path_env
-    );
-
-    // Now run the build.
-
-    // TODO: Should we run make clean? (prevents caching...)
-    // Command::new("make")
-    //     .arg("clean")
-    //     .current_dir(&build_dir)
-    //     .run_verbose()?;
-
-    let tmp_dir = std::env::temp_dir();
-
-    let dir32 = libc_dir.join("sysroot32");
-    let dir32_tmp = tmp_dir.join("sysroot32");
-    let dir64 = libc_dir.join("sysroot64");
-    let dir64_tmp = tmp_dir.join("sysroot64");
-
-    if dir32_tmp.is_dir() {
-        std::fs::remove_dir_all(&dir32_tmp)?;
-    }
-    if dir64_tmp.is_dir() {
-        std::fs::remove_dir_all(&dir64_tmp)?;
-    }
-
-    eprintln!("Building wasm32...");
-    Command::new("make")
-        .arg("clean")
-        .current_dir(&libc_dir)
-        .run_verbose()?;
-    Command::new("bash")
-        .arg("./build32.sh")
-        .current_dir(&libc_dir)
-        .env("PATH", &path)
-        .run_verbose()
-        .context("could not build sysroot32")?;
-
-    copy_path(&dir32, &dir32_tmp, false, true)?;
-
-    eprintln!("Building wasm64...");
-    Command::new("make")
-        .arg("clean")
-        .current_dir(&libc_dir)
-        .run_verbose()?;
-    Command::new("bash")
-        .arg("./build64.sh")
-        .current_dir(&libc_dir)
-        .env("PATH", &path)
-        .run_verbose()
-        .context("could not build sysroot64")?;
-    // copy_path(&dir64, &dir64_tmp, false, true)?;
-
-    // Command::new("make")
-    //     .arg("clean")
-    //     .current_dir(&libc_dir)
-    //     .run_verbose()?;
-
-    if dir32.is_dir() {
-        std::fs::remove_dir_all(&dir32)?;
-    }
-
-    std::fs::rename(&dir32_tmp, &dir32).context("could not copy temp dir")?;
-    // std::fs::rename(&dir64_tmp, &dir64)?;
-
-    eprintln!(
-        "wasix-libc build complete!\n{}\n{}",
-        dir32.display(),
-        dir64.display(),
-    );
-
-    Ok(())
-}
-
-/// Output info of a successful rust toolchain build.
-pub struct RustBuildOutput {
-    pub target: String,
-    pub toolchain_dir: PathBuf,
-}
-
-/// Build the Rust toolchain for wasm{32,64}-wasmer-wasi
-fn build_rust(
-    build_root: &Path,
-    tag: Option<&str>,
-    host_triple: Option<&str>,
-    update_repo: bool,
-) -> Result<RustBuildOutput, anyhow::Error> {
-    let rust_dir = build_root.join("wasix-rust");
-    let libc_dir = build_root.join("wasix-libc");
-    let git_tag = tag.unwrap_or(RUST_BRANCH);
-
-    ensure_libc_dir_valid(&libc_dir)?;
-
-    if update_repo {
-        prepare_git_repo(RUST_REPO, git_tag, &rust_dir, true)?;
-    }
-
-    let sysroot32 = libc_dir.join("sysroot32");
-    let sysroot64 = libc_dir.join("sysroot64");
-    if !sysroot32.is_dir() || !sysroot64.is_dir() {
-        anyhow::bail!(
-            "Could not find wasix-libc sysroots at {} and {}",
-            sysroot32.display(),
-            sysroot64.display()
-        );
-    }
-
-    let config_tpl = r#"
-change-id = 125535
-
-# NOTE: can't enable because using the cached llvm prevents building rust-lld,
-# which is required for the toolchain to work.
-[llvm]
-download-ci-llvm = false
-
-[build]
-target = ["wasm32-wasmer-wasi", "wasm64-wasmer-wasi"]
-extended = true
-tools = [ "clippy", "rustfmt" ]
-configure-args = []
-
-[rust]
-lld = true
-llvm-tools = true
-
-[target.wasm32-wasmer-wasi]
-wasi-root = "{sysroot32}"
-
-[target.wasm64-wasmer-wasi]
-wasi-root = "{sysroot64}"
-"#;
-
-    // Note: need to replace \ with \\ for Windows paths.
-    let config = config_tpl
-        .replace(
-            "{sysroot32}",
-            &sysroot32.to_str().unwrap().replace('\\', "\\\\"),
-        )
-        .replace(
-            "{sysroot64}",
-            &sysroot64.to_str().unwrap().replace('\\', "\\\\"),
-        );
-
-    std::fs::write(rust_dir.join("config.toml"), config)?;
-
-    // Stage 1.
-
-    let has_python3 = Command::new("python3").arg("--version").run().is_ok();
-    let python_cmd = if has_python3 { "python3" } else { "python" };
-
-    let mut cmd = Command::new(python_cmd);
-    // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
-    // things that break the build.
-    cmd.env("GITHUB_ACTIONS", "false");
-    cmd.args(["x.py", "build"]);
-    if let Some(triple) = host_triple {
-        cmd.args(["--host", triple]);
-    }
-    cmd.current_dir(&rust_dir).run_verbose()?;
-
-    // Stage 2.
-    let mut cmd = Command::new("python3");
-    // Added because x.py checks for GITHUB_ACTIONS env var and does some weird
-    // things that break the build.
-    cmd.env("GITHUB_ACTIONS", "false");
-    cmd.arg(rust_dir.join("x.py"))
-        .args(["build", "--stage", "2"]);
-    if let Some(triple) = host_triple {
-        cmd.args(["--host", triple]);
-    }
-    cmd.current_dir(&rust_dir).run_verbose()?;
-
-    eprintln!("Rust build complete!");
-
-    if let Some(triple) = host_triple {
-        let dir = rust_dir.join("build").join(triple).join("stage2");
-        Ok(RustBuildOutput {
-            target: triple.to_string(),
-            toolchain_dir: dir,
-        })
-    } else {
-        // Find target.
-        // TODO: properly detect host triple from output?
-        // Currently could return the wrong result if multiple hosts were built.
-        for res in std::fs::read_dir(rust_dir.join("build"))? {
-            let entry = res?;
-            let toolchain_dir = entry.path().join("stage2");
-            if toolchain_dir.is_dir() {
-                let target = entry.file_name().to_string_lossy().to_string();
-                return Ok(RustBuildOutput {
-                    target,
-                    toolchain_dir,
-                });
-            }
-        }
-
-        bail!("Could not find build directory")
-    }
-}
 
 /// Try to get the host target triple.
 ///
@@ -621,18 +141,6 @@ fn download_toolchain(
             )
         })?;
 
-    // Find sysroot asset.
-    let sysroot_asset = release
-        .assets
-        .iter()
-        .find(|asset| asset.name == "wasix-libc.tar.gz")
-        .with_context(|| {
-            format!(
-                "Release {} does not have the sysroot asset",
-                release.tag_name,
-            )
-        })?;
-
     let toolchain_dir = toolchains_root_dir.join(format!("{target}_{}", release.tag_name));
     if toolchain_dir.is_dir() {
         eprintln!(
@@ -640,34 +148,6 @@ fn download_toolchain(
             toolchain_dir.display()
         );
         std::fs::remove_dir_all(&toolchain_dir)?;
-    }
-
-    // Download and extract sysroot.
-    eprintln!(
-        "Downloading sysroot from url '{}'...",
-        &sysroot_asset.browser_download_url
-    );
-    let res = client
-        .get(&sysroot_asset.browser_download_url)
-        .send()?
-        .error_for_status()?;
-
-    eprintln!("Extracting...");
-    let decoder = flate2::read::GzDecoder::new(res);
-    let mut archive = tar::Archive::new(decoder);
-
-    let out_dir = toolchain_dir.join("sysroot");
-    archive.unpack(&out_dir)?;
-
-    // The archive contains a redundant additional directory. Strip it.
-    let wrapper = out_dir.join("wasix-libc");
-    if wrapper.is_dir() {
-        std::fs::rename(wrapper.join("sysroot32"), out_dir.join("sysroot32"))
-            .context("Invalid/missing libc sysroot directory")?;
-        std::fs::rename(wrapper.join("sysroot64"), out_dir.join("sysroot64"))
-            .context("Invalid/missing libc sysroot directory")?;
-
-        std::fs::remove_dir_all(wrapper).context("Could not delete intermediate directory")?;
     }
 
     // Download.
@@ -680,7 +160,6 @@ fn download_toolchain(
         .send()?
         .error_for_status()?;
 
-    eprintln!("Extracting...");
     let decoder = flate2::read::GzDecoder::new(res);
     let mut archive = tar::Archive::new(decoder);
 
@@ -827,16 +306,6 @@ impl RustupToolchain {
             path: dir.into(),
         })
     }
-
-    pub fn sysroot_dir(&self, is64bit: bool) -> Option<PathBuf> {
-        let size = if is64bit { 64 } else { 32 };
-        let path = self.path.parent()?.join(format!("sysroot{size}"));
-        if path.is_dir() {
-            Some(path)
-        } else {
-            None
-        }
-    }
 }
 
 /// Makes sure that the wasix toolchain is available.
@@ -847,7 +316,7 @@ impl RustupToolchain {
 /// Also checks that the toolchain is correctly installed.
 ///
 /// Returns the path to the toolchain.
-pub fn ensure_toolchain(config: &Config, is64bit: bool) -> Result<RustupToolchain, anyhow::Error> {
+pub fn ensure_toolchain(config: &Config) -> Result<RustupToolchain, anyhow::Error> {
     let _lock = Config::acquire_lock()?;
 
     let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
@@ -878,11 +347,7 @@ WARNING: building takes a long time!"#
         .context("Could not execute rustc")?;
     assert_eq!(toolchain.path, rust_sysroot);
 
-    let lib_name = if is64bit {
-        "lib/rustlib/wasm64-wasmer-wasi"
-    } else {
-        "lib/rustlib/wasm32-wasmer-wasi"
-    };
+    let lib_name = "lib/rustlib/wasm32-wasmer-wasi";
     let lib_dir = rust_sysroot.join(lib_name);
     if !lib_dir.exists() {
         bail!(

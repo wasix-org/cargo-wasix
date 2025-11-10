@@ -46,7 +46,6 @@ pub fn main() {
 #[derive(Debug)]
 enum Subcommand {
     Build,
-    BuildToolchain,
     DownloadToolchain,
     Run,
     Test,
@@ -60,44 +59,18 @@ fn rmain(config: &mut Config) -> Result<()> {
     config.load_cache()?;
 
     // skip the current executable and the `wasix` inserted by Cargo
-    let mut is64bit = false;
     let mut no_message_format = false;
     let mut args = env::args_os().skip(2);
+
     let subcommand = args.next().and_then(|s| s.into_string().ok());
     let subcommand = match subcommand.as_deref() {
         Some("build") => Subcommand::Build,
-        Some("build64") => {
-            is64bit = true;
-            Subcommand::Build
-        }
-        Some("build-toolchain") => Subcommand::BuildToolchain,
         Some("download-toolchain") => Subcommand::DownloadToolchain,
         Some("run") => Subcommand::Run,
-        Some("run64") => {
-            is64bit = true;
-            Subcommand::Run
-        }
         Some("test") => Subcommand::Test,
-        Some("test64") => {
-            is64bit = true;
-            Subcommand::Test
-        }
         Some("bench") => Subcommand::Bench,
-        Some("bench64") => {
-            is64bit = true;
-            Subcommand::Bench
-        }
         Some("check") => Subcommand::Check,
-        Some("check64") => {
-            is64bit = true;
-            Subcommand::Check
-        }
         Some("tree") => {
-            no_message_format = true;
-            Subcommand::Tree
-        }
-        Some("tree64") => {
-            is64bit = true;
             no_message_format = true;
             Subcommand::Tree
         }
@@ -118,7 +91,6 @@ fn rmain(config: &mut Config) -> Result<()> {
     cargo.arg("+wasix");
     cargo.arg(match subcommand {
         Subcommand::Build => "build",
-        Subcommand::BuildToolchain => "build-toolchain",
         Subcommand::DownloadToolchain => "download-toolchain",
         Subcommand::Check => "check",
         Subcommand::Fix => "fix",
@@ -128,10 +100,10 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Run => "run",
     });
 
-    // TODO: figure out when these flags are already passed to `cargo` and skip
-    // passing them ourselves.
-    let target = if is64bit {
-        "wasm64-wasmer-wasi"
+    let manifest_config = read_manifest_config()?;
+
+    let target = if manifest_config.dl.unwrap_or(false) {
+        "wasm32-wasmer-wasi-dl"
     } else {
         "wasm32-wasmer-wasi"
     };
@@ -194,11 +166,6 @@ fn rmain(config: &mut Config) -> Result<()> {
             ));
             return Ok(());
         }
-        Subcommand::BuildToolchain => {
-            let opts = toolchain::BuildToochainOptions::from_env()?;
-            toolchain::build_toolchain(opts)?;
-            return Ok(());
-        }
         Subcommand::Run | Subcommand::Bench | Subcommand::Test => {
             check_deps = true;
             if !using_default {
@@ -236,16 +203,9 @@ fn rmain(config: &mut Config) -> Result<()> {
     } else {
         None
     };
-    let toolchain = toolchain::ensure_toolchain(config, is64bit)?;
+    let toolchain = toolchain::ensure_toolchain(config)?;
 
     std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name);
-
-    if let Ok(dir) = std::env::var("WASI_SDK_DIR") {
-        config.verbose(|| config.status("WASI_SDK_DIR=", &dir));
-    } else if let Some(sysroot) = toolchain.sysroot_dir(is64bit) {
-        std::env::set_var("WASI_SDK_DIR", &sysroot);
-        config.verbose(|| config.status("WASI_SDK_DIR={}", &sysroot.display().to_string()));
-    }
 
     // Set some flags for rustc (only if RUSTFLAGS is not already set)
     if std::env::var("RUSTFLAGS").is_err() {
@@ -260,7 +220,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     // Run the cargo commands
-    let build = execute_cargo(&mut cargo, config)?;
+    let build = execute_cargo(&mut cargo, config, manifest_config)?;
 
     config.info("Post-processing WebAssembly files");
 
@@ -345,9 +305,25 @@ struct Profile {
 #[derive(serde::Deserialize, Debug, Default)]
 #[serde(rename_all = "kebab-case")]
 struct ManifestConfig {
+    dl: Option<bool>,
     wasm_opt: Option<bool>,
     wasm_name_section: Option<bool>,
     wasm_producers_section: Option<bool>,
+}
+
+#[derive(serde::Deserialize)]
+struct CargoMetadata {
+    workspace_root: String,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct CargoManifest {
+    package: Option<CargoPackage>,
+}
+
+#[derive(serde::Deserialize, Debug)]
+struct CargoPackage {
+    metadata: Option<ManifestConfig>,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -398,78 +374,35 @@ fn process_wasm(
     config.verbose(|| {
         config.status("Processing", &temp.display().to_string());
     });
-
-    let should_generate_dwarf = !matches!(profile.debuginfo, Some(0) | None);
-
-    let mut module = walrus::ModuleConfig::new()
-        // If the `debuginfo` is configured then we leave in the debuginfo
-        // sections.
-        .generate_dwarf(should_generate_dwarf)
-        .generate_name_section(build.enable_name_section(profile))
-        .generate_producers_section(build.enable_producers_section(profile))
-        .strict_validate(false)
-        .parse_file(temp)
-        .context("could not parse wasm")?;
-
-    // Demangle everything so it's got a more readable name since there's
-    // no real need to mangle the symbols in wasm.
-    for func in module.funcs.iter_mut() {
-        if let Some(name) = &mut func.name {
-            if let Ok(sym) = rustc_demangle::try_demangle(name) {
-                *name = sym.to_string();
-            }
-        }
-    }
-
-    run_wasm_opt(wasm, &module.emit_wasm(), profile, build, config)?;
+    run_wasm_opt(wasm, temp, profile, build, config)?;
     Ok(())
 }
 
 fn run_wasm_opt(
     wasm: &Path,
-    bytes: &[u8],
+    temp: &Path,
     profile: &Profile,
     build: &CargoBuild,
     config: &Config,
 ) -> Result<()> {
-    // If debuginfo is enabled, automatically disable `wasm-opt`. It will mess
-    // up dwarf debug information currently, so we can't run it.
-    //
-    // Additionally if no optimizations are enabled, no need to run `wasm-opt`,
-    // we're not optimizing.
-
-    // we should follow this logic but currently we want to run wasm-opt with asyncify pass for both debug and release builds
-    // match profile.debuginfo {
-    //     Some(0) | None => (),
-    //     _ if profile.opt_level == "0" => {
-    //         fs::write(wasm, bytes)?;
-    //         return Ok(());
-    //     }
-    //     _ => (),
-    // }
-
     // Allow explicitly disabling wasm-opt via `Cargo.toml`.
     if build.manifest_config.wasm_opt == Some(false) {
-        fs::write(wasm, bytes)?;
+        std::fs::rename(temp, wasm).context("failed to rename build output")?;
         return Ok(());
     }
 
     config.status("Optimizing", "with wasm-opt");
-    let tempdir = tempfile::TempDir::new_in(wasm.parent().unwrap())
-        .context("failed to create temporary directory")?;
     let wasm_opt = config.get_wasm_opt();
 
-    let input = tempdir.path().join("input.wasm");
-    fs::write(&input, bytes)?;
     let mut cmd = Command::new(wasm_opt.bin_path());
-    cmd.arg(&input);
+    cmd.arg(temp);
     cmd.arg(format!("-O{}", profile.opt_level));
     cmd.arg("-o").arg(wasm);
     cmd.arg("--enable-bulk-memory");
     cmd.arg("--enable-threads");
     cmd.arg("--enable-reference-types");
     cmd.arg("--no-validation");
-    cmd.arg("--asyncify");
+    cmd.arg("--translate-to-exnref");
 
     if !build.enable_producers_section(profile) {
         cmd.arg("--strip-producers");
@@ -505,9 +438,37 @@ fn run_wasm_opt(
     Ok(())
 }
 
+fn read_manifest_config() -> Result<ManifestConfig> {
+    let output = Command::new("cargo")
+        .arg("metadata")
+        .arg("--no-deps")
+        .arg("--format-version=1")
+        .capture_stdout()?;
+    let metadata = serde_json::from_str::<CargoMetadata>(&output)
+        .context("failed to deserialize `cargo metadata`")?;
+
+    let manifest = Path::new(&metadata.workspace_root).join("Cargo.toml");
+    let toml = fs::read_to_string(&manifest)
+        .context(format!("failed to read manifest: {}", manifest.display()))?;
+    let toml = toml::from_str::<CargoManifest>(&toml).context(format!(
+        "failed to deserialize as TOML: {}",
+        manifest.display()
+    ))?;
+
+    if let Some(meta) = toml.package.and_then(|p| p.metadata) {
+        Ok(meta)
+    } else {
+        Ok(ManifestConfig::default())
+    }
+}
+
 /// Executes the `cargo` command, reading all of the JSON that pops out and
 /// parsing that into a `CargoBuild`.
-fn execute_cargo(cargo: &mut Command, config: &Config) -> Result<CargoBuild> {
+fn execute_cargo(
+    cargo: &mut Command,
+    config: &Config,
+    manifest_config: ManifestConfig,
+) -> Result<CargoBuild> {
     config.verbose(|| config.status("Running", &format!("{:?}", cargo)));
     let mut process = cargo
         .stdout(Stdio::piped())
@@ -558,40 +519,7 @@ fn execute_cargo(cargo: &mut Command, config: &Config) -> Result<CargoBuild> {
         }
     }
 
-    #[derive(serde::Deserialize)]
-    struct CargoMetadata {
-        workspace_root: String,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct CargoManifest {
-        package: Option<CargoPackage>,
-    }
-
-    #[derive(serde::Deserialize)]
-    struct CargoPackage {
-        metadata: Option<ManifestConfig>,
-    }
-
-    let metadata = Command::new("cargo")
-        .arg("metadata")
-        .arg("--no-deps")
-        .arg("--format-version=1")
-        .capture_stdout()?;
-    let metadata = serde_json::from_str::<CargoMetadata>(&metadata)
-        .context("failed to deserialize `cargo metadata`")?;
-
-    let manifest = Path::new(&metadata.workspace_root).join("Cargo.toml");
-    let toml = fs::read_to_string(&manifest)
-        .context(format!("failed to read manifest: {}", manifest.display()))?;
-    let toml = toml::from_str::<CargoManifest>(&toml).context(format!(
-        "failed to deserialize as TOML: {}",
-        manifest.display()
-    ))?;
-
-    if let Some(meta) = toml.package.and_then(|p| p.metadata) {
-        build.manifest_config = meta;
-    }
+    build.manifest_config = manifest_config;
 
     Ok(build)
 }
@@ -650,7 +578,7 @@ fn run_or_download(
 }
 
 fn install_wasm_opt(path: &ToolPath, config: &Config) -> Result<()> {
-    let tag = "version_113";
+    let tag = "version_123";
     let binaryen_url = |target: &str| {
         let mut url = "https://github.com/WebAssembly/binaryen/releases/download/".to_string();
         url.push_str(tag);
