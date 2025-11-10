@@ -216,7 +216,7 @@ pub fn install_prebuilt_toolchain(
         }
     } else {
         Err(anyhow::anyhow!(
-            "The WASIX toolchain is not available for download on this platform. Build it yourself with: 'cargo wasix build-toolchain'"
+            "The WASIX toolchain is not available for download on this platform."
         ))
     }
 }
@@ -309,7 +309,7 @@ impl RustupToolchain {
 }
 
 /// Makes sure that the wasix toolchain is available by
-/// trying to download a pre-built toolchain if possible.
+/// downloading a pre-built toolchain if not already installed.
 ///
 /// Also checks that the toolchain is correctly installed.
 ///
@@ -323,10 +323,7 @@ pub fn ensure_toolchain(config: &Config) -> Result<RustupToolchain, anyhow::Erro
         install_prebuilt_toolchain(&Config::toolchain_dir()?, ToolchainSpec::Latest)?
     } else {
         bail!(
-            r#"
-Could not detect wasix toolchain, and could not install because CARGO_WASIX_OFFLINE is set.
-Run `cargo wasix build-toolchain if you want to build locally.
-WARNING: building takes a long time!"#
+            "Could not detect wasix toolchain, and could not install because CARGO_WASIX_OFFLINE is set."
         );
     };
 
