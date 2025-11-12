@@ -306,6 +306,16 @@ impl RustupToolchain {
             path: dir.into(),
         })
     }
+
+    #[cfg(not(target_os = "windows"))]
+    pub fn bin(&self, name: &str) -> PathBuf {
+        self.path.join("bin").join(name)
+    }
+
+    #[cfg(target_os = "windows")]
+    pub fn bin(&self, name: &str) -> PathBuf {
+        self.path.join("bin").join(name).with_extension("exe")
+    }
 }
 
 /// Makes sure that the wasix toolchain is available by
