@@ -88,7 +88,6 @@ fn rmain(config: &mut Config) -> Result<()> {
     };
 
     let mut cargo = Command::new("cargo");
-    cargo.arg("+wasix");
     cargo.arg(match subcommand {
         Subcommand::Build => "build",
         Subcommand::DownloadToolchain => "download-toolchain",
@@ -208,8 +207,10 @@ fn rmain(config: &mut Config) -> Result<()> {
         None
     };
     let toolchain = toolchain::ensure_toolchain(config)?;
-
-    std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name);
+    let rustc_path = toolchain.bin("rustc");
+    let rustdoc_path = toolchain.bin("rustdoc");
+    std::env::set_var("RUSTC", &rustc_path);
+    std::env::set_var("RUSTDOC", &rustdoc_path);
 
     // Set some flags for rustc (only if RUSTFLAGS is not already set)
     if std::env::var("RUSTFLAGS").is_err() {
