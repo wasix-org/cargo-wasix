@@ -947,3 +947,96 @@ fn dependencies_replaced_are_ignored() -> Result<()> {
     p.cargo_wasix("check").assert().stdout("").success();
     Ok(())
 }
+
+#[test]
+fn wasixcc_env_vars_set() -> Result<()> {
+    // Test that CC is set to wasixcc when it's available
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "build.rs",
+            r#"
+                fn main() {
+                    if let Ok(cc) = std::env::var("CC") {
+                        println!("cargo:warning=CC is set to: {}", cc);
+                    } else {
+                        println!("cargo:warning=CC is not set");
+                    }
+                }
+            "#,
+        )
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "foo"
+                version = '1.0.0'
+                
+                [build-dependencies]
+            "#,
+        )
+        .build();
+
+    let output = p.cargo_wasix("build").assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    
+    // If wasixcc is available, CC should be set to wasixcc
+    if which::which("wasixcc").is_ok() {
+        assert!(
+            stderr.contains("CC is set to: wasixcc"),
+            "Expected CC to be set to wasixcc when wasixcc is available, stderr:\n{}",
+            stderr
+        );
+    }
+    
+    Ok(())
+}
+
+#[test]
+fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
+    // Test that WASIXCC_PIC and WASIXCC_WASM_EXCEPTIONS are set for -dl target
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "build.rs",
+            r#"
+                fn main() {
+                    if let Ok(pic) = std::env::var("WASIXCC_PIC") {
+                        println!("cargo:warning=WASIXCC_PIC is set to: {}", pic);
+                    }
+                    if let Ok(exceptions) = std::env::var("WASIXCC_WASM_EXCEPTIONS") {
+                        println!("cargo:warning=WASIXCC_WASM_EXCEPTIONS is set to: {}", exceptions);
+                    }
+                }
+            "#,
+        )
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "foo"
+                version = '1.0.0'
+                
+                [package.metadata]
+                dl = true
+            "#,
+        )
+        .build();
+
+    let output = p.cargo_wasix("build").assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    
+    // For -dl target, WASIXCC_PIC and WASIXCC_WASM_EXCEPTIONS should be set
+    assert!(
+        stderr.contains("WASIXCC_PIC is set to: 1"),
+        "Expected WASIXCC_PIC=1 for -dl target, stderr:\n{}",
+        stderr
+    );
+    assert!(
+        stderr.contains("WASIXCC_WASM_EXCEPTIONS is set to: 1"),
+        "Expected WASIXCC_WASM_EXCEPTIONS=1 for -dl target, stderr:\n{}",
+        stderr
+    );
+    
+    Ok(())
+}

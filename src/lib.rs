@@ -216,6 +216,28 @@ fn rmain(config: &mut Config) -> Result<()> {
         env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
     }
 
+    // Set CC to wasixcc if it's available and not already set
+    if std::env::var("CC").is_err() {
+        if which::which("wasixcc").is_ok() {
+            env::set_var("CC", "wasixcc");
+            config.verbose(|| config.info("Set CC=wasixcc"));
+        }
+    }
+
+    // For the -dl target, set wasixcc-specific environment variables
+    if target.ends_with("-dl") {
+        // Enable position-independent code for dynamic linking
+        if std::env::var("WASIXCC_PIC").is_err() {
+            env::set_var("WASIXCC_PIC", "1");
+            config.verbose(|| config.info("Set WASIXCC_PIC=1 for -dl target"));
+        }
+        // Enable WASM exceptions for better performance and C++ exception support
+        if std::env::var("WASIXCC_WASM_EXCEPTIONS").is_err() {
+            env::set_var("WASIXCC_WASM_EXCEPTIONS", "1");
+            config.verbose(|| config.info("Set WASIXCC_WASM_EXCEPTIONS=1 for -dl target"));
+        }
+    }
+
     // Check the dependencies, if needed, before running cargo.
     if check_deps {
         if let Err(err) = dependencies::check(config, target) {
