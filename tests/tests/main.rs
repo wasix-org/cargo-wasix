@@ -971,8 +971,6 @@ fn wasixcc_env_vars_set() -> Result<()> {
                 [package]
                 name = "foo"
                 version = '1.0.0'
-                
-                [build-dependencies]
             "#,
         )
         .build();
