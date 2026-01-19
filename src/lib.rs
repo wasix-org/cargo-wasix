@@ -224,6 +224,14 @@ fn rmain(config: &mut Config) -> Result<()> {
         }
     }
 
+    // Set CXX to wasixcc++ if it's available and not already set
+    if std::env::var("CXX").is_err() {
+        if which::which("wasixcc++").is_ok() {
+            env::set_var("CXX", "wasixcc++");
+            config.verbose(|| config.info("Set CXX=wasixcc++"));
+        }
+    }
+
     // For the -dl target, set wasixcc-specific environment variables
     if target.ends_with("-dl") {
         // Enable position-independent code for dynamic linking

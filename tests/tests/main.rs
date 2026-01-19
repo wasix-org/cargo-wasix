@@ -950,7 +950,7 @@ fn dependencies_replaced_are_ignored() -> Result<()> {
 
 #[test]
 fn wasixcc_env_vars_set() -> Result<()> {
-    // Test that CC is set to wasixcc when it's available
+    // Test that CC and CXX are set to wasixcc/wasixcc++ when available
     let p = support::project()
         .file("src/main.rs", "fn main() {}")
         .file(
@@ -961,6 +961,11 @@ fn wasixcc_env_vars_set() -> Result<()> {
                         println!("cargo:warning=CC is set to: {}", cc);
                     } else {
                         println!("cargo:warning=CC is not set");
+                    }
+                    if let Ok(cxx) = std::env::var("CXX") {
+                        println!("cargo:warning=CXX is set to: {}", cxx);
+                    } else {
+                        println!("cargo:warning=CXX is not set");
                     }
                 }
             "#,
@@ -983,6 +988,15 @@ fn wasixcc_env_vars_set() -> Result<()> {
         assert!(
             stderr.contains("CC is set to: wasixcc"),
             "Expected CC to be set to wasixcc when wasixcc is available, stderr:\n{}",
+            stderr
+        );
+    }
+    
+    // If wasixcc++ is available, CXX should be set to wasixcc++
+    if which::which("wasixcc++").is_ok() {
+        assert!(
+            stderr.contains("CXX is set to: wasixcc++"),
+            "Expected CXX to be set to wasixcc++ when wasixcc++ is available, stderr:\n{}",
             stderr
         );
     }
