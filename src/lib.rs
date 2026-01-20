@@ -217,19 +217,15 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     // Set CC to wasixcc if it's available and not already set
-    if std::env::var("CC").is_err() {
-        if which::which("wasixcc").is_ok() {
-            env::set_var("CC", "wasixcc");
-            config.verbose(|| config.info("Set CC=wasixcc"));
-        }
+    if std::env::var("CC").is_err() && which::which("wasixcc").is_ok() {
+        env::set_var("CC", "wasixcc");
+        config.verbose(|| config.info("Set CC=wasixcc"));
     }
 
     // Set CXX to wasixcc++ if it's available and not already set
-    if std::env::var("CXX").is_err() {
-        if which::which("wasixcc++").is_ok() {
-            env::set_var("CXX", "wasixcc++");
-            config.verbose(|| config.info("Set CXX=wasixcc++"));
-        }
+    if std::env::var("CXX").is_err() && which::which("wasixcc++").is_ok() {
+        env::set_var("CXX", "wasixcc++");
+        config.verbose(|| config.info("Set CXX=wasixcc++"));
     }
 
     // For the -dl target, set wasixcc-specific environment variables
