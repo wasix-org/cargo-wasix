@@ -982,7 +982,7 @@ fn wasixcc_env_vars_set() -> Result<()> {
 
     let output = p.cargo_wasix("build").assert().success();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    
+
     // If wasixcc is available, CC should be set to wasixcc
     if which::which("wasixcc").is_ok() {
         assert!(
@@ -991,7 +991,7 @@ fn wasixcc_env_vars_set() -> Result<()> {
             stderr
         );
     }
-    
+
     // If wasixcc++ is available, CXX should be set to wasixcc++
     if which::which("wasixcc++").is_ok() {
         assert!(
@@ -1000,7 +1000,7 @@ fn wasixcc_env_vars_set() -> Result<()> {
             stderr
         );
     }
-    
+
     Ok(())
 }
 
@@ -1037,7 +1037,7 @@ fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
 
     let output = p.cargo_wasix("build").assert().success();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
-    
+
     // For -dl target, WASIXCC_PIC and WASIXCC_WASM_EXCEPTIONS should be set
     assert!(
         stderr.contains("WASIXCC_PIC is set to: 1"),
@@ -1049,6 +1049,6 @@ fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
         "Expected WASIXCC_WASM_EXCEPTIONS=1 for -dl target, stderr:\n{}",
         stderr
     );
-    
+
     Ok(())
 }
