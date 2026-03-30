@@ -213,7 +213,10 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     // Set some flags for rustc (only if RUSTFLAGS is not already set)
     if std::env::var("RUSTFLAGS").is_err() {
-        env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
+        env::set_var(
+            "RUSTFLAGS",
+            "-C target-feature=+atomics,+simd128,+relaxed-simd,+extended-const",
+        );
     }
 
     // Check the dependencies, if needed, before running cargo.
