@@ -119,10 +119,10 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     let args = args.collect::<Vec<_>>();
     for arg in args.clone() {
-        if let Some(arg) = arg.to_str() {
-            if arg.starts_with("--verbose") || arg.starts_with("-v") {
-                config.set_verbose(true);
-            }
+        if let Some(arg) = arg.to_str()
+            && (arg.starts_with("--verbose") || arg.starts_with("-v"))
+        {
+            config.set_verbose(true);
         }
 
         cargo.arg(arg);
@@ -501,10 +501,10 @@ fn execute_cargo(
                 fresh,
             }) => {
                 let mut parts = package_id.split_whitespace();
-                if parts.next() == Some("wasm-bindgen") {
-                    if let Some(version) = parts.next() {
-                        build.wasm_bindgen = Some(version.to_string());
-                    }
+                if parts.next() == Some("wasm-bindgen")
+                    && let Some(version) = parts.next()
+                {
+                    build.wasm_bindgen = Some(version.to_string());
                 }
                 for file in filenames {
                     let file = PathBuf::from(file);

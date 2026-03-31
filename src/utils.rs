@@ -182,10 +182,10 @@ pub fn get(url: &str, timeout: Duration) -> Result<Response> {
         // This is only for the connect phase.
         .connect_timeout(Duration::from_secs(10))
         .timeout(timeout);
-    if let Some(proxy_url) = get_http_proxy() {
-        if let Ok(proxy) = Proxy::all(&proxy_url) {
-            client = client.proxy(proxy);
-        }
+    if let Some(proxy_url) = get_http_proxy()
+        && let Ok(proxy) = Proxy::all(&proxy_url)
+    {
+        client = client.proxy(proxy);
     }
     let client = client.build()?;
 
