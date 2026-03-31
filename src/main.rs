@@ -18,7 +18,11 @@ fn main() {
     if try_self_delete {
         // We'll be handling this, so recursive invocations of `cargo-wasix`
         // shouldn't try to handle this.
-        std::env::remove_var("__CARGO_WASIX_SELF_DELETE_FOR_SURE");
+
+        // SAFETY: not safe in multi-threaded environment
+        unsafe {
+            std::env::remove_var("__CARGO_WASIX_SELF_DELETE_FOR_SURE");
+        }
         let me = match std::env::current_exe() {
             Ok(path) => path,
             Err(e) => {
@@ -31,11 +35,11 @@ fn main() {
             None => std::process::exit(2),
         };
         let to_delete = me.with_file_name(format!(".{}", filename));
-        if let Err(e) = std::fs::remove_file(to_delete) {
-            if cfg!(unix) {
-                eprintln!("failed to rename executable to final location: {}", e);
-                std::process::exit(1);
-            }
+        if let Err(e) = std::fs::remove_file(to_delete)
+            && cfg!(unix)
+        {
+            eprintln!("failed to rename executable to final location: {}", e);
+            std::process::exit(1);
         }
     }
 

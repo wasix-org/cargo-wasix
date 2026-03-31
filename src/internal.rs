@@ -1,5 +1,5 @@
 use crate::config::Config;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use semver::Version;
 use std::ffi::OsString;
 use std::fs::{self, File};
@@ -126,10 +126,10 @@ impl UpdateCheck<'_> {
         // After we've been installed a week, let's also just check once a week
         // to see if an update is available. Again, we're being as uber super
         // cautious as we can be here.
-        if let Ok(metadata) = last_check.metadata() {
-            if now < metadata.modified()? + week {
-                return Ok(false);
-            }
+        if let Ok(metadata) = last_check.metadata()
+            && now < metadata.modified()? + week
+        {
+            return Ok(false);
         }
 
         // ... Ok and if we're here then it's been at least a week since we

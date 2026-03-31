@@ -1,7 +1,7 @@
 use crate::cache::Cache;
 use crate::config::Config;
 use crate::utils::CommandExt;
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::env;
 use std::fs;
 use std::io;
@@ -119,10 +119,10 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     let args = args.collect::<Vec<_>>();
     for arg in args.clone() {
-        if let Some(arg) = arg.to_str() {
-            if arg.starts_with("--verbose") || arg.starts_with("-v") {
-                config.set_verbose(true);
-            }
+        if let Some(arg) = arg.to_str()
+            && (arg.starts_with("--verbose") || arg.starts_with("-v"))
+        {
+            config.set_verbose(true);
         }
 
         cargo.arg(arg);
@@ -209,18 +209,20 @@ fn rmain(config: &mut Config) -> Result<()> {
     };
     let toolchain = toolchain::ensure_toolchain(config)?;
 
-    std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name);
+    // SAFETY: not safe in multi-threaded environment
+    unsafe { std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name) };
 
     // Set some flags for rustc (only if RUSTFLAGS is not already set)
     if std::env::var("RUSTFLAGS").is_err() {
-        env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
+        // SAFETY: not safe in multi-threaded environment
+        unsafe {
+            env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
+        }
     }
 
     // Check the dependencies, if needed, before running cargo.
-    if check_deps {
-        if let Err(err) = dependencies::check(config, target) {
-            config.warn(&format!("failed to check dependencies: {err}"));
-        }
+    if check_deps && let Err(err) = dependencies::check(config, target) {
+        config.warn(&format!("failed to check dependencies: {err}"));
     }
 
     // Run the cargo commands
@@ -499,10 +501,10 @@ fn execute_cargo(
                 fresh,
             }) => {
                 let mut parts = package_id.split_whitespace();
-                if parts.next() == Some("wasm-bindgen") {
-                    if let Some(version) = parts.next() {
-                        build.wasm_bindgen = Some(version.to_string());
-                    }
+                if parts.next() == Some("wasm-bindgen")
+                    && let Some(version) = parts.next()
+                {
+                    build.wasm_bindgen = Some(version.to_string());
                 }
                 for file in filenames {
                     let file = PathBuf::from(file);

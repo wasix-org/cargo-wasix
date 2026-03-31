@@ -1,9 +1,9 @@
 use crate::config::Config;
-use anyhow::{anyhow, bail, Context, Error, Result};
+use anyhow::{Context, Error, Result, anyhow, bail};
 use fs2::FileExt;
+use reqwest::Proxy;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::USER_AGENT;
-use reqwest::Proxy;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
@@ -182,10 +182,10 @@ pub fn get(url: &str, timeout: Duration) -> Result<Response> {
         // This is only for the connect phase.
         .connect_timeout(Duration::from_secs(10))
         .timeout(timeout);
-    if let Some(proxy_url) = get_http_proxy() {
-        if let Ok(proxy) = Proxy::all(&proxy_url) {
-            client = client.proxy(proxy);
-        }
+    if let Some(proxy_url) = get_http_proxy()
+        && let Ok(proxy) = Proxy::all(&proxy_url)
+    {
+        client = client.proxy(proxy);
     }
     let client = client.build()?;
 
