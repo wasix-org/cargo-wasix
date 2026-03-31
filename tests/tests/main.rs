@@ -113,27 +113,40 @@ fn rust_names_demangled() -> Result<()> {
 fn assert_demangled(wasm: &[u8]) -> Result<()> {
     let mut saw_name = false;
     for payload in wasmparser::Parser::new(0).parse_all(wasm) {
-        let mut reader = match payload? {
-            wasmparser::Payload::CustomSection {
-                name: "name",
-                data,
-                data_offset,
-                ..
-            } => wasmparser::NameSectionReader::new(data, data_offset)?,
+        let reader = match payload? {
+            wasmparser::Payload::CustomSection(sectionreader) => {
+                let name = sectionreader.name();
+                if name == "name" {
+                    wasmparser::NameSectionReader::new(wasmparser::BinaryReader::new(
+                        sectionreader.data(),
+                        sectionreader.data_offset(),
+                    ))
+                } else {
+                    continue;
+                }
+            }
             _ => continue,
         };
         saw_name = true;
 
-        while !reader.eof() {
-            let functions = match reader.read()? {
-                wasmparser::Name::Module(_) => continue,
+        for subsection in reader {
+            let functions = match subsection? {
+                wasmparser::Name::Module { .. } => continue,
                 wasmparser::Name::Function(f) => f,
                 wasmparser::Name::Local(_) => continue,
+                wasmparser::Name::Label(_) => continue,
+                wasmparser::Name::Type(_) => continue,
+                wasmparser::Name::Table(_) => continue,
+                wasmparser::Name::Memory(_) => continue,
+                wasmparser::Name::Global(_) => continue,
+                wasmparser::Name::Element(_) => continue,
+                wasmparser::Name::Data(_) => continue,
+                wasmparser::Name::Field(_) => continue,
+                wasmparser::Name::Tag(_) => continue,
                 wasmparser::Name::Unknown { .. } => continue,
             };
-            let mut map = functions.get_map()?;
-            for _ in 0..map.get_count() {
-                let name = map.read()?;
+            for name in functions {
+                let name = name?;
                 if name.name.contains("ZN") {
                     panic!("still-mangled name {:?}", name.name);
                 }
@@ -756,8 +769,8 @@ fn name_section() -> Result<()> {
 fn custom_sections(bytes: &[u8]) -> Result<Vec<&str>> {
     let mut sections = Vec::new();
     for payload in wasmparser::Parser::new(0).parse_all(bytes) {
-        if let wasmparser::Payload::CustomSection { name, .. } = payload? {
-            sections.push(name)
+        if let wasmparser::Payload::CustomSection(section) = payload? {
+            sections.push(section.name())
         }
     }
     Ok(sections)
