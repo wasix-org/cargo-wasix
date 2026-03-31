@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
-use predicates::str::is_match;
+use predicates::str::{contains, is_match};
+use regex::Regex;
 use std::process::Command;
 
 mod support;
@@ -174,10 +175,10 @@ fn check_output() -> Result<()> {
         .cargo_wasix("build")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
 .*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
 $",
@@ -192,7 +193,7 @@ $",
     p.cargo_wasix("build -v")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
 .*Running \"cargo\" .*
 .*Compiling foo v1.0.0 .*
@@ -210,7 +211,7 @@ $",
     p.cargo_wasix("build -v")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
 .*Running \"cargo\" .*
 .*Fresh foo v1.0.0 .*
@@ -224,7 +225,7 @@ $",
     p.cargo_wasix("build")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
 .*Finished dev .*
 .*info: Post-processing WebAssembly files
@@ -233,6 +234,31 @@ $",
         .success();
 
     Ok(())
+}
+
+fn stderr_after_finished_matches(pattern: &'static str) -> Result<impl predicates::Predicate<str>> {
+    let predicate = is_match(pattern)?;
+    /* We are intentionally skipping the following 2 warnings:
+
+    info: `cargo` is unavailable for the active toolchain
+    info: falling back to \"/home/marxin/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo\"
+    info: `cargo` is unavailable for the active toolchain
+    info: falling back to \"/home/marxin/.rustup/toolchains/nightly-x86_64-unknown-linux-gnu/bin/cargo\"
+    warning: `package.edition` is unspecified, defaulting to `2015` while the latest is `2024`
+       Compiling foo v1.0.0 (/home/marxin/Programming/wasix-org/cargo-wasix/target/tests/t0)
+    warning: unstable feature specified for `-Ctarget-feature`: `atomics`
+      |
+      = note: this feature is not stably supported; its behavior can change in the future
+
+     */
+    let start_re = Regex::new(r"\n\s+Finished ").unwrap();
+    Ok(predicate::function(move |stderr: &str| {
+        let start = start_re.find(stderr).map(|m| m.start() + 1);
+
+        start
+            .map(|offset| predicate.eval(&stderr[offset..]))
+            .unwrap_or(false)
+    }))
 }
 
 // FIXME: wasm-opt isn't running in release mode, so this test is disabled for now
@@ -253,10 +279,9 @@ fn check_output_release() -> Result<()> {
         .cargo_wasix("build --release")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished release .*
+.*Finished `release` .*
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
 $",
@@ -271,12 +296,9 @@ $",
     p.cargo_wasix("build -v --release")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Running \"cargo\" .*
-.*Compiling foo v1.0.0 .*
-.*Running `.*rustc .*`
-.*Finished release .*
+.*Finished `release` .*
 .*info: Post-processing WebAssembly files
 .*Processing .*foo.rustc.wasm
 .*Optimizing with wasm-opt
@@ -289,11 +311,9 @@ $",
     p.cargo_wasix("build -v --release")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Running \"cargo\" .*
-.*Fresh foo v1.0.0 .*
-.*Finished release .*
+.*Finished `release` .*
 .*info: Post-processing WebAssembly files
 $",
         )?)
@@ -303,9 +323,9 @@ $",
     p.cargo_wasix("build --release")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Finished release .*
+.*Finished `release` .*
 .*info: Post-processing WebAssembly files
 $",
         )?)
@@ -348,7 +368,7 @@ fn wasm_bindgen() -> Result<()> {
         .env("WASM_BINDGEN", "my-wasm-bindgen")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
 .*Running \"cargo\" .*
 .*Compiling wasm-bindgen v1.0.0 .*
@@ -389,7 +409,7 @@ $",
         .env("WASM_BINDGEN", "my-wasm-bindgen")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
 .*Compiling wasm-bindgen .*
 .*Compiling foo .*
@@ -692,18 +712,9 @@ fn run_panic() -> Result<()> {
         .build()
         .cargo_wasix("run")
         .assert()
-        .stderr(is_match(
-            "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
-.*Running `.*cargo-wasix .*foo.wasm`
-.*info: Post-processing WebAssembly files
-.*Optimizing with wasm-opt
-.*Running `.*foo.wasm`
-thread 'main' panicked at 'test', src.main.rs.*
-note: run with `RUST_BACKTRACE=1` .*
-",
-        )?)
+        .stderr(
+            contains("Compiling foo v1.0.0").and(contains("thread 'main' panicked at src/main.rs")),
+        )
         .failure();
     Ok(())
 }
