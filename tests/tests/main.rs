@@ -756,9 +756,8 @@ fn name_section() -> Result<()> {
 fn custom_sections(bytes: &[u8]) -> Result<Vec<&str>> {
     let mut sections = Vec::new();
     for payload in wasmparser::Parser::new(0).parse_all(bytes) {
-        match payload? {
-            wasmparser::Payload::CustomSection { name, .. } => sections.push(name),
-            _ => {}
+        if let wasmparser::Payload::CustomSection { name, .. } = payload? {
+            sections.push(name)
         }
     }
     Ok(sections)
