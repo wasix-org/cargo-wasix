@@ -41,8 +41,7 @@ jobs:
 
       - name: test
         shell: bash
-        run: |
-          cargo test --all-features
+        run: cargo test --all-features -j1
       - name: build
         shell: bash
         run: |
