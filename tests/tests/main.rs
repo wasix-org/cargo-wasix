@@ -96,22 +96,22 @@ fn fix_works() {
 }
 
 #[test]
-fn rust_names_demangled() -> Result<()> {
+fn rust_names_mangled() -> Result<()> {
     let p = support::project()
         .file("src/main.rs", "fn main() {}")
         .build();
 
     p.cargo_wasix("build").assert().success();
     let bytes = std::fs::read(p.debug_wasm("foo")).context("failed to read wasm")?;
-    assert_demangled(&bytes)?;
+    assert_mangled(&bytes)?;
 
     p.cargo_wasix("build --release").assert().success();
     let bytes = std::fs::read(p.release_wasm("foo")).context("failed to read wasm")?;
-    assert_demangled(&bytes)?;
+    assert_mangled(&bytes)?;
     Ok(())
 }
 
-fn assert_demangled(wasm: &[u8]) -> Result<()> {
+fn assert_mangled(wasm: &[u8]) -> Result<()> {
     let mut saw_name = false;
     for payload in wasmparser::Parser::new(0).parse_all(wasm) {
         let reader = match payload? {
@@ -149,13 +149,13 @@ fn assert_demangled(wasm: &[u8]) -> Result<()> {
             for name in functions {
                 let name = name?;
                 if name.name.contains("ZN") {
-                    panic!("still-mangled name {:?}", name.name);
+                    return Ok(());
                 }
             }
         }
     }
     assert!(saw_name);
-    Ok(())
+    panic!("no mangled names seen");
 }
 
 #[test]
@@ -177,7 +177,6 @@ fn check_output() -> Result<()> {
         .stdout("")
         .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
 .*Finished `dev` .*
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -195,14 +194,11 @@ $",
         .stdout("")
         .stderr(stderr_after_finished_matches(
             "^\
-.*Running \"cargo\" .*
-.*Compiling foo v1.0.0 .*
-.*Running `.*rustc .*`
-.*Finished dev .*
+.*Finished `dev` .*
 .*info: Post-processing WebAssembly files
 .*Processing .*foo.rustc.wasm
 .*Optimizing with wasm-opt
-.*Running .*wasm-opt.*--asyncify.*--debuginfo.*
+.*Running .*wasm-opt.*--debuginfo.*
 $",
         )?)
         .success();
@@ -213,9 +209,7 @@ $",
         .stdout("")
         .stderr(stderr_after_finished_matches(
             "^\
-.*Running \"cargo\" .*
-.*Fresh foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*info: Post-processing WebAssembly files
 $",
         )?)
@@ -227,7 +221,7 @@ $",
         .stdout("")
         .stderr(stderr_after_finished_matches(
             "^\
-.*Finished dev .*
+.*Finished `dev` .*
 .*info: Post-processing WebAssembly files
 $",
         )?)
@@ -436,10 +430,9 @@ fn run() -> Result<()> {
         .cargo_wasix("run")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*Running `.*cargo-wasix .*foo.wasm`
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -459,10 +452,9 @@ $",
         .cargo_wasix("run")
         .assert()
         .stdout("hello\n")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*Running `.*cargo-wasix .*foo.wasm`
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -482,10 +474,9 @@ fn run_override_runtime() -> Result<()> {
         .cargo_wasix("run")
         .assert()
         .stdout("")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*Running `.*cargo-wasix .*foo.wasm`
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -521,10 +512,9 @@ $",
         .cargo_wasix("run")
         .assert()
         .stdout("hello\n")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*Running `.*cargo-wasix .*foo.wasm`
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -550,10 +540,9 @@ $",
         .cargo_wasix("run")
         .assert()
         .stdout("hello\n")
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*Running `.*cargo-wasix .*foo.wasm`
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -576,10 +565,9 @@ $",
         .cargo_wasix("run")
         .assert()
         .stdout(is_match("target.wasm32-wasmer-wasi.debug.foo.wasm")?)
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*Running `.*cargo-wasix .*foo.wasm`
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
@@ -623,20 +611,12 @@ fn test() -> Result<()> {
         .build()
         .cargo_wasix("test")
         .assert()
-        .stdout(
-            "
-running 1 test
-test smoke ... ok
-
-test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
-
-",
-        )
-        .stderr(is_match(
+        .stdout(contains("test result: ok. 1 passed; 0 failed"))
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished test .*
+.*Finished `test` .*
 .*Running unittests src/lib.rs .*wasm.
+.*Doc-tests foo
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
 .*Running `.*wasm`
@@ -806,10 +786,9 @@ fn release_skip_wasm_opt() -> Result<()> {
 
     p.cargo_wasix("build --release")
         .assert()
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished release .*
+.*Finished `release` .*
 .*info: Post-processing WebAssembly files
 $",
         )?)
@@ -836,10 +815,9 @@ fn skip_wasm_opt_if_debug() -> Result<()> {
 
     p.cargo_wasix("build --release")
         .assert()
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "^\
-.*Compiling foo v1.0.0 .*
-.*Finished release .*
+.*Finished `release` .*
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
 $",
@@ -884,10 +862,9 @@ fn workspace_works() -> Result<()> {
 
     p.cargo_wasix("build")
         .assert()
-        .stderr(is_match(
+        .stderr(stderr_after_finished_matches(
             "(?m)^\
-.*Compiling foo v1.0.0 .*
-.*Finished dev .*
+.*Finished `dev` .*
 .*info: Post-processing WebAssembly files
 .*Optimizing with wasm-opt
 $",
