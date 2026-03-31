@@ -2,7 +2,7 @@
 
 use crate::config::Config;
 use crate::utils::{self, CommandExt};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::collections::hash_map::{self, HashMap};
 use std::fmt::Write as _;
 use std::fs;
@@ -69,7 +69,7 @@ fn read_known_incompatible_crates(config: &Config) -> Result<Vec<IncompatibleCra
             return download_known_incompatible_crates(config, &path);
         }
         Err(err) => {
-            return Err(err).with_context(|| format!("failed to read '{}'", path.display()))
+            return Err(err).with_context(|| format!("failed to read '{}'", path.display()));
         }
     };
 

@@ -1,9 +1,9 @@
 use crate::config::Config;
-use anyhow::{anyhow, bail, Context, Error, Result};
+use anyhow::{Context, Error, Result, anyhow, bail};
 use fs2::FileExt;
+use reqwest::Proxy;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::USER_AGENT;
-use reqwest::Proxy;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::path::Path;
