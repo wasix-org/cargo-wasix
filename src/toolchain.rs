@@ -7,7 +7,7 @@ use std::{
     process::Command,
 };
 
-use anyhow::{bail, Context};
+use anyhow::{Context, bail};
 use reqwest::header::HeaderMap;
 
 use crate::{config::Config, utils::CommandExt};
@@ -208,7 +208,9 @@ pub fn install_prebuilt_toolchain(
                 let root_description = format!("{root_cause:?}");
                 if root_description.contains("HTTP") && root_description.contains("api.github.com")
                 {
-                    eprintln!("\nHint: You can pass in a Github token via the GITHUB_TOKEN environment variable to avoid rate limits");
+                    eprintln!(
+                        "\nHint: You can pass in a Github token via the GITHUB_TOKEN environment variable to avoid rate limits"
+                    );
                 }
 
                 Err(err.context("Download of pre-built toolchain failed"))

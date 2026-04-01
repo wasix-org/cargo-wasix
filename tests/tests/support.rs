@@ -16,7 +16,7 @@ pub fn root() -> PathBuf {
     path.pop(); // chop off 'debug'
     path.push("tests");
     fs::create_dir_all(&path).unwrap();
-    path.join(&format!("t{}", id))
+    path.join(format!("t{}", id))
 }
 
 pub fn project() -> ProjectBuilder {

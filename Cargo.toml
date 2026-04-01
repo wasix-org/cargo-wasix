@@ -2,7 +2,7 @@
 name = "cargo-wasix"
 version = "0.1.26"
 authors = ["Wasmer Engineering Team <engineering@wasmer.io>"]
-edition = "2021"
+edition = "2024"
 license = "Apache-2.0 WITH LLVM-exception"
 repository = "https://github.com/wasix-org/cargo-wasix"
 readme = "README.md"
@@ -25,32 +25,33 @@ exclude = ['tmp', 'target', "cargo-wasix-*"]
 [dependencies]
 anyhow = { version = "1.0", features = ["backtrace"] }
 atty = "0.2"
-cargo_metadata = "0.15"
-dirs = "3.0.1"
+cargo_metadata = "0.23.1"
+dirs = "6.0.0"
 flate2 = "1"
 fs2 = "0.4"
 fs_extra = "1.2.0"
-reqwest = { version = "0.11", default-features = false, features = [
+reqwest = { version = "0.13.2", default-features = false, features = [
   "blocking",
   "json",
-  "rustls-tls",
+  "rustls",
   "gzip",
 ] }
 rustc-demangle = "0.1.16"
 same-file = "1.0"
-semver = "0.11"
+semver = "1.0.27"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tar = "0.4"
 tempfile = "3"
 termcolor = "1.0.5"
-toml = "0.5"
-which = "4.0"
+toml = "1.1.0"
+which = "8.0.0"
 
 [dev-dependencies]
-assert_cmd = "1.0.0"
-predicates = "1.0.1"
-wasmparser = "0.78"
+assert_cmd = "2.2.0"
+predicates = "3.1.4"
+regex = "1"
+wasmparser = "0.245.1"
 
 # Config for 'cargo dist'
 [workspace.metadata.dist]

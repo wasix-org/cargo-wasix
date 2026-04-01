@@ -2,7 +2,7 @@
 
 use crate::config::Config;
 use crate::utils::{self, CommandExt};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use std::collections::hash_map::{self, HashMap};
 use std::fmt::Write as _;
 use std::fs;
@@ -69,7 +69,7 @@ fn read_known_incompatible_crates(config: &Config) -> Result<Vec<IncompatibleCra
             return download_known_incompatible_crates(config, &path);
         }
         Err(err) => {
-            return Err(err).with_context(|| format!("failed to read '{}'", path.display()))
+            return Err(err).with_context(|| format!("failed to read '{}'", path.display()));
         }
     };
 
@@ -177,18 +177,18 @@ pub fn check(config: &Config, target: &str) -> Result<()> {
                 continue;
             };
 
-            if let Some(source) = pkg.source.as_ref() {
-                if source.repr.starts_with("git+https://github.com/wasix-org") {
-                    // Already using a replacement crate.
-                    continue;
-                }
+            if let Some(source) = pkg.source.as_ref()
+                && source.repr.starts_with("git+https://github.com/wasix-org")
+            {
+                // Already using a replacement crate.
+                continue;
             }
 
             // Filter out versions that are known to compatible.
-            if let Some(versions) = &incompatible_crate.compatible_versions {
-                if versions.matches(&pkg.version) {
-                    continue;
-                }
+            if let Some(versions) = &incompatible_crate.compatible_versions
+                && versions.matches(&pkg.version)
+            {
+                continue;
             }
 
             found_incompatible_crates.push((incompatible_crate, &pkg.version));

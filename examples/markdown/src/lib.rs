@@ -6,5 +6,5 @@ pub fn render(input: &str) -> String {
     let parser = Parser::new_ext(input, Options::empty());
     let mut html_output = String::new();
     html::push_html(&mut html_output, parser);
-    return html_output;
+    html_output
 }
