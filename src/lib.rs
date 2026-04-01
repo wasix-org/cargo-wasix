@@ -216,7 +216,10 @@ fn rmain(config: &mut Config) -> Result<()> {
     if std::env::var("RUSTFLAGS").is_err() {
         // SAFETY: not safe in multi-threaded environment
         unsafe {
-            env::set_var("RUSTFLAGS", "-C target-feature=+atomics");
+            env::set_var(
+                "RUSTFLAGS",
+                "-C target-feature=+atomics,+simd128,+relaxed-simd,+extended-const",
+            );
         }
     }
 
