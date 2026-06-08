@@ -218,7 +218,7 @@ fn rmain(config: &mut Config) -> Result<()> {
         unsafe {
             env::set_var(
                 "RUSTFLAGS",
-                "-C target-feature=+atomics,+simd128,+relaxed-simd,+extended-const",
+                "-C target-feature=+atomics,+simd128,+relaxed-simd,+extended-const,+wide-arithmetic",
             );
         }
     }
