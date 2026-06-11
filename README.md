@@ -72,6 +72,55 @@ irm https://github.com/wasix-org/cargo-wasix/releases/latest/download/cargo-wasi
 $ cargo wasix --version
 ```
 
+### GitHub Actions
+
+Install `cargo-wasix` and the WASIX toolchain in CI using the composite action
+published from this repository. Rust and rustup must already be on `PATH` (e.g.
+via [`dtolnay/rust-toolchain`](https://github.com/dtolnay/rust-toolchain)).
+
+Minimal example:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: dtolnay/rust-toolchain@stable
+- uses: wasix-org/cargo-wasix@v0.1.27
+- run: cargo wasix build
+```
+
+The action ref determines the default `cargo-wasix` version — `uses:
+wasix-org/cargo-wasix@v0.1.27` installs `0.1.27` without an explicit
+`with.version`. Prefer tagged refs for reproducible CI.
+
+#### Inputs
+
+| Input | Required | Default | Description |
+| --- | --- | --- | --- |
+| `version` | no | `""` | crates.io version of `cargo-wasix`. Empty uses the `version` from `Cargo.toml` at the action ref. |
+| `toolchain-version` | no | `""` | WASIX Rust toolchain tag (e.g. `v2026-06-09.1+rust-1.90`). Empty downloads the latest toolchain. |
+| `locked` | no | `"true"` | Pass `--locked` to `cargo install`. |
+
+#### Full example
+
+```yaml
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  wasix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: wasix-org/cargo-wasix@v0.1.27
+        with:
+          version: "0.1.27"
+          toolchain-version: v2026-06-09.1+rust-1.90
+          locked: "true"
+      - run: cargo wasix build
+      - run: cargo wasix test
+```
+
 ## Usage
 
 The `cargo wasix` subcommand is a thin wrapper around `cargo` subcommands,
