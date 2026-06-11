@@ -1,0 +1,59 @@
+name: Setup cargo-wasix
+description: Install cargo-wasix and download the WASIX toolchain (requires Rust/cargo/rustup on PATH)
+branding:
+  color: purple
+  icon: package
+inputs:
+  version:
+    description: cargo-wasix version (empty = version from Cargo.toml at action ref)
+    required: false
+    default: ""
+  toolchain-version:
+    description: WASIX toolchain tag (empty = latest)
+    required: false
+    default: ""
+  locked:
+    description: Use --locked when installing
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Check prerequisites
+      shell: bash
+      run: |
+        command -v cargo >/dev/null || {
+          echo "::error::cargo not found — add dtolnay/rust-toolchain@stable before this action"
+          exit 1
+        }
+        command -v rustup >/dev/null || {
+          echo "::error::rustup not found — add dtolnay/rust-toolchain@stable before this action"
+          exit 1
+        }
+    - name: Install cargo-wasix
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.version }}" ]]; then
+          VERSION="${{ inputs.version }}"
+        else
+          VERSION=$(grep -m1 '^version' "${{ github.action_path }}/Cargo.toml" | sed -E 's/.*"([^"]+)".*/\1/')
+        fi
+        echo "Installing cargo-wasix $VERSION"
+        args=(cargo-wasix --version "$VERSION")
+        if [[ "${{ inputs.locked }}" == "true" ]]; then
+          args+=(--locked)
+        fi
+        cargo install "${args[@]}"
+    - name: Verify installation
+      shell: bash
+      run: cargo wasix --version
+    - name: Download WASIX toolchain
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        if [[ -n "${{ inputs.toolchain-version }}" ]]; then
+          cargo wasix download-toolchain "${{ inputs.toolchain-version }}"
+        else
+          cargo wasix download-toolchain
+        fi
