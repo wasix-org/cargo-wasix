@@ -21,6 +21,9 @@ name: Release
 permissions:
   contents: write
 
+env:
+  CARGO_DIST_VERSION: "0.30.2"
+
 # This task will run whenever you push a git tag that looks like a version
 # like "1.0.0", "v0.1.0-prerelease.1", "my-app/0.1.0", "releases/v1.0.0", etc.
 # Various formats will be parsed into a VERSION and an optional PACKAGE_NAME, where
@@ -58,14 +61,26 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-dist
-        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
+        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v${{ env.CARGO_DIST_VERSION }}/cargo-dist-installer.sh | sh"
       - id: plan
         run: |
-          cargo dist plan --tag=${{ github.ref_name }} --output-format=json > dist-manifest.json
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CRATE_VERSION=$(cargo metadata --no-deps --format-version=1 | jq --raw-output '.packages[] | select(.name == "cargo-wasix") | .version')
+
+          if [ "$TAG_VERSION" != "$CRATE_VERSION" ]; then
+            echo "tag version $TAG_VERSION does not match cargo-wasix version $CRATE_VERSION"
+            exit 1
+          fi
+
+          cargo publish --dry-run --locked --package cargo-wasix
+          cargo dist plan --tag="${{ github.ref_name }}" --output-format=json > dist-manifest.json
           echo "dist plan ran successfully"
           cat dist-manifest.json
 
@@ -73,11 +88,11 @@ jobs:
           ANNOUNCEMENT_TITLE=$(jq --raw-output ".announcement_title" dist-manifest.json)
           IS_PRERELEASE=$(jq --raw-output ".announcement_is_prerelease" dist-manifest.json)
           jq --raw-output ".announcement_github_body" dist-manifest.json > new_dist_announcement.md
-          gh release create ${{ github.ref_name }} --draft --prerelease="$IS_PRERELEASE" --title="$ANNOUNCEMENT_TITLE" --notes-file=new_dist_announcement.md
+          gh release create "${{ github.ref_name }}" --verify-tag --draft --prerelease="$IS_PRERELEASE" --title="$ANNOUNCEMENT_TITLE" --notes-file=new_dist_announcement.md
           echo "created announcement!"
 
           # Upload the manifest to the Github Release™
-          gh release upload ${{ github.ref_name }} dist-manifest.json
+          gh release upload "${{ github.ref_name }}" --clobber dist-manifest.json
           echo "uploaded manifest!"
 
           # Disable all the upload-artifacts tasks if we have no actual releases
@@ -97,22 +112,23 @@ jobs:
         include:
           - os: "macos-15"
             dist-args: "--artifacts=local --target=aarch64-apple-darwin"
-            install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
-          - os: "macos-13"
+            install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.30.2/cargo-dist-installer.sh | sh"
+          - os: "macos-15-intel"
             dist-args: "--artifacts=local --target=x86_64-apple-darwin"
-            install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
+            install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.30.2/cargo-dist-installer.sh | sh"
           - os: "windows-2022"
             dist-args: "--artifacts=local --target=x86_64-pc-windows-msvc"
-            install-dist: "irm  https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.ps1 | iex"
+            install-dist: "powershell -ExecutionPolicy Bypass -c \"irm https://github.com/axodotdev/cargo-dist/releases/download/v0.30.2/cargo-dist-installer.ps1 | iex\""
           - os: "ubuntu-22.04"
             dist-args: "--artifacts=local --target=x86_64-unknown-linux-gnu"
-            install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
+            install-dist: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.30.2/cargo-dist-installer.sh | sh"
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
       - name: Install cargo-dist
         run: ${{ matrix.install-dist }}
@@ -123,7 +139,7 @@ jobs:
         # do agree on 'cat' and '$()' so we use that to marshal values between commands.
         run: |
           # Actually do builds and make zips and whatnot
-          cargo dist build --tag=${{ github.ref_name }} --output-format=json ${{ matrix.dist-args }} > dist-manifest.json
+          cargo dist build --tag="${{ github.ref_name }}" --output-format=json ${{ matrix.dist-args }} > dist-manifest.json
           echo "dist ran successfully"
           cat dist-manifest.json
 
@@ -131,7 +147,7 @@ jobs:
           jq --raw-output ".artifacts[]?.path | select( . != null )" dist-manifest.json > uploads.txt
           echo "uploading..."
           cat uploads.txt
-          gh release upload ${{ github.ref_name }} $(cat uploads.txt)
+          gh release upload "${{ github.ref_name }}" --clobber $(cat uploads.txt)
           echo "uploaded!"
 
   # Build and package all the platform-agnostic(ish) things
@@ -141,18 +157,19 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
       - name: Install cargo-dist
-        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.2.0/cargo-dist-installer.sh | sh"
+        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v${{ env.CARGO_DIST_VERSION }}/cargo-dist-installer.sh | sh"
       # Get all the local artifacts for the global tasks to use (for e.g. checksums)
       - name: Fetch local artifacts
         run: |
-          gh release download ${{ github.ref_name }} --dir target/distrib/
+          gh release download "${{ github.ref_name }}" --clobber --dir target/distrib/
       - name: Run cargo-dist
         run: |
-          cargo dist build --tag=${{ github.ref_name }} --output-format=json "--artifacts=global" > dist-manifest.json
+          cargo dist build --tag="${{ github.ref_name }}" --output-format=json "--artifacts=global" > dist-manifest.json
           echo "dist ran successfully"
           cat dist-manifest.json
 
@@ -160,7 +177,7 @@ jobs:
           jq --raw-output ".artifacts[]?.path | select( . != null )" dist-manifest.json > uploads.txt
           echo "uploading..."
           cat uploads.txt
-          gh release upload ${{ github.ref_name }} $(cat uploads.txt)
+          gh release upload "${{ github.ref_name }}" --clobber $(cat uploads.txt)
           echo "uploaded!"
 
   # Mark the Github Release™ as a non-draft now that everything has succeeded!
@@ -172,9 +189,41 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           submodules: recursive
       - name: mark release as non-draft
         run: |
-          gh release edit ${{ github.ref_name }} --draft=false
+          gh release edit "${{ github.ref_name }}" --draft=false
+
+  publish-crates-io:
+    needs: publish-release
+    if: ${{ needs.publish-release.result == 'success' && startsWith(github.ref_name, 'v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Verify tag matches crate version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          CRATE_VERSION=$(cargo metadata --no-deps --format-version=1 | jq --raw-output '.packages[] | select(.name == "cargo-wasix") | .version')
+
+          if [ "$TAG_VERSION" != "$CRATE_VERSION" ]; then
+            echo "tag version $TAG_VERSION does not match cargo-wasix version $CRATE_VERSION"
+            exit 1
+          fi
+      - name: Authenticate with crates.io
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+      - name: Publish crate
+        run: cargo publish --locked --package cargo-wasix
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
