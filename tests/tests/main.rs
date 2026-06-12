@@ -599,6 +599,94 @@ fn run_forward_args() -> Result<()> {
 }
 
 #[test]
+fn wasmer_arg_stripped_on_build() -> Result<()> {
+    support::project()
+        .file("src/main.rs", "fn main() {}")
+        .build()
+        .cargo_wasix("build -W,--not-a-cargo-flag")
+        .assert()
+        .success();
+    Ok(())
+}
+
+#[test]
+fn run_forward_args_with_wasmer_arg() -> Result<()> {
+    support::project()
+        .file(
+            "src/main.rs",
+            r#"
+                fn main() {
+                    println!("{:?}", std::env::args().skip(1).collect::<Vec<_>>());
+                }
+            "#,
+        )
+        .build()
+        .cargo_wasix("run -W,--quiet a -b c")
+        .assert()
+        .stdout("[\"a\", \"-b\", \"c\", \"--color=never\"]\n")
+        .success();
+    Ok(())
+}
+
+#[test]
+fn run_wasmer_arg_pass_through_echo() -> Result<()> {
+    support::project()
+        .file("src/main.rs", "fn main() {}")
+        .override_runtime("echo")
+        .build()
+        .cargo_wasix("run -W,--volume,./src:/app,--cwd,/app")
+        .assert()
+        .stdout(is_match("--volume")?)
+        .stdout(is_match("/app")?)
+        .success();
+    Ok(())
+}
+
+#[test]
+fn test_reads_fixture_with_defaults() -> Result<()> {
+    support::project()
+        .file("tests/data.txt", "fixture-data\n")
+        .file(
+            "src/lib.rs",
+            r#"
+                #[test]
+                fn reads_fixture() {
+                    let content = std::fs::read_to_string("tests/data.txt").unwrap();
+                    assert_eq!(content, "fixture-data\n");
+                }
+            "#,
+        )
+        .build()
+        .cargo_wasix("test reads_fixture")
+        .assert()
+        .stdout(contains("test result: ok. 1 passed; 0 failed"))
+        .success();
+    Ok(())
+}
+
+#[test]
+fn test_reads_fixture_without_defaults_fails() -> Result<()> {
+    support::project()
+        .file("tests/data.txt", "fixture-data\n")
+        .file(
+            "src/lib.rs",
+            r#"
+                #[test]
+                fn reads_fixture() {
+                    let content = std::fs::read_to_string("tests/data.txt").unwrap();
+                    assert_eq!(content, "fixture-data\n");
+                }
+            "#,
+        )
+        .build()
+        .cargo_wasix("test reads_fixture")
+        .env("CARGO_WASIX_NO_RUN_DEFAULTS", "1")
+        .assert()
+        .failure();
+    Ok(())
+}
+
+#[test]
 fn test() -> Result<()> {
     support::project()
         .file(
