@@ -61,7 +61,10 @@ mod tests {
         let (cargo, wasmer) =
             split_cargo_and_wasmer_args(args.iter().map(|s| OsString::from(*s))).unwrap();
         (
-            cargo.into_iter().map(|s| s.into_string().unwrap()).collect(),
+            cargo
+                .into_iter()
+                .map(|s| s.into_string().unwrap())
+                .collect(),
             wasmer,
         )
     }
@@ -70,7 +73,10 @@ mod tests {
     fn splits_comma_separated_runtime_args() {
         assert_eq!(
             split(&["-W,--mapdir,/tmp:/tmp"]),
-            (vec![], vec!["--mapdir".to_string(), "/tmp:/tmp".to_string()])
+            (
+                vec![],
+                vec!["--mapdir".to_string(), "/tmp:/tmp".to_string()]
+            )
         );
     }
 
@@ -94,7 +100,11 @@ mod tests {
         assert_eq!(
             split(&["-W,--foo", "--", "-W,--bar", "guest"]),
             (
-                vec!["--".to_string(), "-W,--bar".to_string(), "guest".to_string()],
+                vec![
+                    "--".to_string(),
+                    "-W,--bar".to_string(),
+                    "guest".to_string()
+                ],
                 vec!["--foo".to_string()]
             )
         );

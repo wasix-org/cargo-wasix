@@ -50,7 +50,8 @@ pub fn configure_runtime_command(
 
 /// Whether automatic runtime defaults are disabled via environment variable.
 pub fn run_defaults_disabled() -> bool {
-    env::var("CARGO_WASIX_NO_RUN_DEFAULTS").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    env::var("CARGO_WASIX_NO_RUN_DEFAULTS")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// Build default wasmer/runtime flags for `test` and `bench`.
@@ -141,11 +142,7 @@ pub fn resolve_manifest_dir(cargo_args: &[OsString]) -> Result<PathBuf> {
 }
 
 fn volume_arg(host_dir: &Path, guest_dir: &str) -> String {
-    format!(
-        "--volume={}:{}",
-        host_dir.display(),
-        guest_dir
-    )
+    format!("--volume={}:{}", host_dir.display(), guest_dir)
 }
 
 fn forward_env(args: &mut Vec<String>, key: &str) {
