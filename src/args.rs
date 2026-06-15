@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use std::ffi::OsString;
 
 /// Split user arguments into cargo-forwarded args and wasmer/runtime args.
@@ -8,7 +8,7 @@ use std::ffi::OsString;
 /// cargo unchanged.
 pub fn split_cargo_and_wasmer_args(
     args: impl IntoIterator<Item = OsString>,
-) -> Result<(Vec<OsString>, Vec<String>)> {
+) -> Result<(Vec<OsString>, Vec<OsString>)> {
     let mut cargo_args = Vec::new();
     let mut wasmer_args = Vec::new();
     let mut iter = args.into_iter().peekable();
@@ -20,31 +20,27 @@ pub fn split_cargo_and_wasmer_args(
             break;
         }
 
-        let Some(text) = arg.to_str() else {
-            cargo_args.push(arg);
-            continue;
-        };
+        let text = arg.to_str().context("argument must be valid UTF-8")?;
+
+        if text == "-W" || text.starts_with("-W") && !text.starts_with("-W,") {
+            bail!("runtime arguments must use `-W,<args>` syntax (like clang's `-Wl,`)");
+        }
 
         if let Some(rest) = text.strip_prefix("-W,") {
             if rest.is_empty() {
                 bail!("`-W,` must be followed by at least one runtime argument");
             }
-            let mut saw_segment = false;
-            for segment in rest.split(',') {
+            let segments: Vec<&str> = rest.split(',').collect();
+            if segments.is_empty() {
+                bail!("`-W,` must be followed by at least one runtime argument");
+            }
+            for segment in segments {
                 if segment.is_empty() {
                     bail!("`-W,` contains an empty comma-separated segment");
                 }
-                wasmer_args.push(segment.to_string());
-                saw_segment = true;
-            }
-            if !saw_segment {
-                bail!("`-W,` must be followed by at least one runtime argument");
+                wasmer_args.push(OsString::from(segment));
             }
             continue;
-        }
-
-        if text == "-W" || text.starts_with("-W") && !text.starts_with("-W,") {
-            bail!("runtime arguments must use `-W,<args>` syntax (like clang's `-Wl,`)");
         }
 
         cargo_args.push(arg);
@@ -65,7 +61,10 @@ mod tests {
                 .into_iter()
                 .map(|s| s.into_string().unwrap())
                 .collect(),
-            wasmer,
+            wasmer
+                .into_iter()
+                .map(|s| s.into_string().unwrap())
+                .collect(),
         )
     }
 
@@ -132,5 +131,14 @@ mod tests {
     fn rejects_empty_segment() {
         let err = split_cargo_and_wasmer_args([OsString::from("-W,--foo,,")]).unwrap_err();
         assert!(err.to_string().contains("empty comma-separated segment"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn rejects_non_utf8_argument() {
+        use std::os::unix::ffi::OsStringExt;
+
+        let err = split_cargo_and_wasmer_args([OsString::from_vec(vec![0xff])]).unwrap_err();
+        assert!(err.to_string().contains("valid UTF-8"));
     }
 }

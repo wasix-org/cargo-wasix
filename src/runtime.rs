@@ -28,7 +28,7 @@ pub fn is_wasmer_runner(runner: &str) -> bool {
 pub fn configure_runtime_command(
     cmd: &mut Command,
     runner: &str,
-    runtime_args: &[String],
+    runtime_args: &[OsString],
     run: &[String],
 ) {
     cmd.args(runtime_invocation_args(runner, runtime_args, run));
@@ -37,24 +37,24 @@ pub fn configure_runtime_command(
 /// Build the argument list passed to a runtime executable (excluding argv[0]).
 pub(crate) fn runtime_invocation_args(
     runner: &str,
-    runtime_args: &[String],
+    runtime_args: &[OsString],
     run: &[String],
-) -> Vec<String> {
+) -> Vec<OsString> {
     if is_wasmer_runner(runner) {
-        let mut args = vec!["run".to_string()];
+        let mut args = vec![OsString::from("run")];
         args.extend(runtime_args.iter().cloned());
         if let Some((wasm, guest)) = run.split_first() {
-            args.push(wasm.clone());
+            args.push(OsString::from(wasm));
             if !guest.is_empty() {
-                args.push("--".to_string());
-                args.extend(guest.iter().cloned());
+                args.push(OsString::from("--"));
+                args.extend(guest.iter().map(|arg| OsString::from(arg)));
             }
         }
         args
     } else {
         let mut args = runtime_args.to_vec();
-        args.push("--".to_string());
-        args.extend(run.iter().cloned());
+        args.push(OsString::from("--"));
+        args.extend(run.iter().map(|arg| OsString::from(arg)));
         args
     }
 }
@@ -66,7 +66,7 @@ pub fn run_defaults_disabled() -> bool {
 }
 
 /// Build default wasmer/runtime flags for `test` and `bench`.
-pub fn default_runtime_args(manifest_dir: &Path) -> Result<Vec<String>> {
+pub fn default_runtime_args(manifest_dir: &Path) -> Result<Vec<OsString>> {
     if run_defaults_disabled() {
         return Ok(Vec::new());
     }
@@ -77,8 +77,8 @@ pub fn default_runtime_args(manifest_dir: &Path) -> Result<Vec<String>> {
     let mut args = vec![
         volume_arg(&manifest_dir, GUEST_PROJECT_DIR),
         volume_arg(&temp_dir, GUEST_TMP_DIR),
-        "--cwd".to_string(),
-        GUEST_PROJECT_DIR.to_string(),
+        OsString::from("--cwd"),
+        OsString::from(GUEST_PROJECT_DIR),
     ];
 
     forward_env(&mut args, "RUST_BACKTRACE");
@@ -163,14 +163,14 @@ pub fn resolve_manifest_dir(cargo_args: &[OsString]) -> Result<PathBuf> {
         .map(|path| PathBuf::from(path.as_str()))
 }
 
-fn volume_arg(host_dir: &Path, guest_dir: &str) -> String {
-    format!("--volume={}:{}", host_dir.display(), guest_dir)
+fn volume_arg(host_dir: &Path, guest_dir: &str) -> OsString {
+    OsString::from(format!("--volume={}:{}", host_dir.display(), guest_dir))
 }
 
-fn forward_env(args: &mut Vec<String>, key: &str) {
+fn forward_env(args: &mut Vec<OsString>, key: &str) {
     if let Ok(value) = env::var(key) {
-        args.push("--env".to_string());
-        args.push(format!("{key}={value}"));
+        args.push(OsString::from("--env"));
+        args.push(OsString::from(format!("{key}={value}")));
     }
 }
 
@@ -186,9 +186,7 @@ fn absolute_host_path(path: &Path) -> Result<PathBuf> {
 fn package_name_from_args(cargo_args: &[OsString]) -> Result<Option<String>> {
     let mut iter = cargo_args.iter().peekable();
     while let Some(arg) = iter.next() {
-        let Some(text) = arg.to_str() else {
-            continue;
-        };
+        let text = arg.to_str().context("argument must be valid UTF-8")?;
 
         if text == "--" {
             break;
@@ -219,9 +217,7 @@ fn package_name_from_args(cargo_args: &[OsString]) -> Result<Option<String>> {
 fn manifest_path_from_args(cargo_args: &[OsString]) -> Result<Option<OsString>> {
     let mut iter = cargo_args.iter().peekable();
     while let Some(arg) = iter.next() {
-        let Some(text) = arg.to_str() else {
-            continue;
-        };
+        let text = arg.to_str().context("argument must be valid UTF-8")?;
 
         if text == "--" {
             break;
@@ -339,7 +335,7 @@ mod tests {
     fn wasmer_runtime_invocation_uses_run_subcommand() {
         let args = runtime_invocation_args(
             "wasmer",
-            &["--quiet".to_string()],
+            &[OsString::from("--quiet")],
             &[
                 "foo.wasm".to_string(),
                 "guest-arg".to_string(),
@@ -349,12 +345,12 @@ mod tests {
         assert_eq!(
             args,
             vec![
-                "run".to_string(),
-                "--quiet".to_string(),
-                "foo.wasm".to_string(),
-                "--".to_string(),
-                "guest-arg".to_string(),
-                "--color=never".to_string(),
+                OsString::from("run"),
+                OsString::from("--quiet"),
+                OsString::from("foo.wasm"),
+                OsString::from("--"),
+                OsString::from("guest-arg"),
+                OsString::from("--color=never"),
             ]
         );
     }
@@ -362,24 +358,27 @@ mod tests {
     #[test]
     fn wasmer_runtime_invocation_omits_guest_separator_without_guest_args() {
         let args = runtime_invocation_args("wasmer", &[], &["foo.wasm".to_string()]);
-        assert_eq!(args, vec!["run".to_string(), "foo.wasm".to_string()]);
+        assert_eq!(
+            args,
+            vec![OsString::from("run"), OsString::from("foo.wasm")]
+        );
     }
 
     #[test]
     fn non_wasmer_runtime_invocation_uses_legacy_shape() {
         let args = runtime_invocation_args(
             "echo",
-            &["--volume".to_string(), ".:/app".to_string()],
+            &[OsString::from("--volume"), OsString::from(".:/app")],
             &["foo.wasm".to_string(), "guest".to_string()],
         );
         assert_eq!(
             args,
             vec![
-                "--volume".to_string(),
-                ".:/app".to_string(),
-                "--".to_string(),
-                "foo.wasm".to_string(),
-                "guest".to_string(),
+                OsString::from("--volume"),
+                OsString::from(".:/app"),
+                OsString::from("--"),
+                OsString::from("foo.wasm"),
+                OsString::from("guest"),
             ]
         );
     }
@@ -429,7 +428,11 @@ mod tests {
         let dir = env::temp_dir().join("cargo-wasix-runtime-defaults-test");
         fs::create_dir_all(&dir).unwrap();
         let args = default_runtime_args(&dir).unwrap();
-        let joined = args.join(" ");
+        let joined = args
+            .iter()
+            .map(|arg| arg.to_str().unwrap())
+            .collect::<Vec<_>>()
+            .join(" ");
         assert!(joined.contains("--volume="));
         assert!(joined.contains("/project"));
         assert!(joined.contains("/tmp"));
@@ -487,7 +490,7 @@ mod tests {
             Some(value) => unsafe { env::set_var("RUST_TEST_THREADS", value) },
             None => unsafe { env::remove_var("RUST_TEST_THREADS") },
         }
-        assert!(args.contains(&"--env".to_string()));
+        assert!(args.contains(&OsString::from("--env")));
         assert!(args.iter().any(|arg| arg == "RUST_BACKTRACE=1"));
         assert!(args.iter().any(|arg| arg == "RUST_TEST_THREADS=4"));
     }
