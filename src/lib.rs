@@ -11,10 +11,12 @@ use std::process::{Command, Stdio};
 use std::time::Duration;
 use tool_path::ToolPath;
 
+mod args;
 mod cache;
 mod config;
 mod dependencies;
 mod internal;
+mod runtime;
 mod tool_path;
 mod toolchain;
 mod utils;
@@ -89,7 +91,7 @@ fn rmain(config: &mut Config) -> Result<()> {
 
     let mut cargo = Command::new("cargo");
     cargo.arg("+wasix");
-    cargo.arg(match subcommand {
+    cargo.arg(match &subcommand {
         Subcommand::Build => "build",
         Subcommand::DownloadToolchain => "download-toolchain",
         Subcommand::Check => "check",
@@ -100,7 +102,7 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Run => "run",
     });
 
-    let manifest_config = if matches!(subcommand, Subcommand::DownloadToolchain) {
+    let manifest_config = if matches!(&subcommand, Subcommand::DownloadToolchain) {
         Default::default()
     } else {
         read_manifest_config()?
@@ -118,7 +120,8 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     let args = args.collect::<Vec<_>>();
-    for arg in args.clone() {
+    let (cargo_args, wasmer_args) = args::split_cargo_and_wasmer_args(args)?;
+    for arg in cargo_args.iter() {
         if let Some(arg) = arg.to_str()
             && (arg.starts_with("--verbose") || arg.starts_with("-v"))
         {
@@ -127,6 +130,17 @@ fn rmain(config: &mut Config) -> Result<()> {
 
         cargo.arg(arg);
     }
+
+    let runtime_args = match &subcommand {
+        Subcommand::Test | Subcommand::Bench => {
+            let manifest_dir = runtime::resolve_manifest_dir(&cargo_args)?;
+            let mut runtime_args = runtime::default_runtime_args(&manifest_dir)?;
+            runtime_args.extend(wasmer_args);
+            runtime_args
+        }
+        Subcommand::Run => wasmer_args,
+        _ => Vec::new(),
+    };
 
     let runner_env_var = format!(
         "CARGO_TARGET_{}_RUNNER",
@@ -154,9 +168,9 @@ fn rmain(config: &mut Config) -> Result<()> {
         .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
     let mut check_deps = false;
-    match subcommand {
+    match &subcommand {
         Subcommand::DownloadToolchain => {
-            let version = args
+            let version = cargo_args
                 .first()
                 .cloned()
                 .map(|v| v.into_string().unwrap().into())
@@ -266,13 +280,8 @@ fn rmain(config: &mut Config) -> Result<()> {
         config.status("Running", &format!("`{}`", run.join(" ")));
         let mut cmd = Command::new(&wasix_runner);
 
-        if wasix_runner == "wasmer" {
-            cmd.arg("--enable-threads");
-        }
-
-        cmd.arg("--")
-            .args(run.iter())
-            .run()
+        runtime::configure_runtime_command(&mut cmd, &wasix_runner, &runtime_args, run);
+        cmd.run()
             .map_err(|e| utils::hide_normal_process_exit(e, config))?;
     }
 

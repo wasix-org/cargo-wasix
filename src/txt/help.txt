@@ -20,3 +20,18 @@ All options accepted are the same as that of the corresponding `cargo`
 subcommands. You can run `cargo wasix build -h` for more information to learn
 about flags that can be passed to `cargo wasix build`, which mirrors the
 `cargo build` command.
+
+RUNTIME OPTIONS:
+    -W,<ARGS>    Pass comma-separated arguments through to the WASIX runtime
+                 (e.g. wasmer). Same idea as clang's -Wl,. Applies to run,
+                 test, and bench. Arguments after `--` are forwarded to the
+                 WASM guest or test harness instead.
+
+                 Example: cargo wasix run -W,--volume,./src:/app
+
+TEST/BENCH DEFAULTS:
+    test and bench automatically mount the package directory at /project
+    (with CWD /project) and map the host temp directory to /tmp. Selected
+    environment variables (RUST_BACKTRACE, RUST_TEST_THREADS) are forwarded
+    when set on the host. Set CARGO_WASIX_NO_RUN_DEFAULTS=1 (or true/yes) to disable.
+    run has no filesystem defaults; use -W,... when needed.
