@@ -61,9 +61,8 @@ pub(crate) fn runtime_invocation_args(
 
 /// Whether automatic runtime defaults are disabled via environment variable.
 pub fn run_defaults_disabled() -> bool {
-    env::var("CARGO_WASIX_NO_RUN_DEFAULTS").is_ok_and(|v| {
-        v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes")
-    })
+    env::var("CARGO_WASIX_NO_RUN_DEFAULTS")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes"))
 }
 
 /// Build default wasmer/runtime flags for `test` and `bench`.
@@ -93,8 +92,7 @@ pub fn resolve_manifest_dir(cargo_args: &[OsString]) -> Result<PathBuf> {
     let manifest_path = manifest_path_from_args(cargo_args)?;
     if let Some(path) = manifest_path {
         let manifest_path = absolute_host_path(Path::new(
-            path.to_str()
-                .context("manifest path must be valid UTF-8")?,
+            path.to_str().context("manifest path must be valid UTF-8")?,
         ))?;
         return manifest_path
             .parent()
