@@ -33,5 +33,5 @@ TEST/BENCH DEFAULTS:
     test and bench automatically mount the package directory at /project
     (with CWD /project) and map the host temp directory to /tmp. Selected
     environment variables (RUST_BACKTRACE, RUST_TEST_THREADS) are forwarded
-    when set on the host. Set CARGO_WASIX_NO_RUN_DEFAULTS=1 to disable.
+    when set on the host. Set CARGO_WASIX_NO_RUN_DEFAULTS=1 (or true/yes) to disable.
     run has no filesystem defaults; use -W,... when needed.

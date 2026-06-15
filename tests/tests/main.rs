@@ -665,6 +665,39 @@ fn test_reads_fixture_with_defaults() -> Result<()> {
 }
 
 #[test]
+fn bench_reads_fixture_with_defaults() -> Result<()> {
+    support::project()
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "foo"
+                version = "1.0.0"
+
+                [[bench]]
+                name = "fixture"
+                harness = false
+            "#,
+        )
+        .file("src/lib.rs", "")
+        .file("benches/data.txt", "fixture-data\n")
+        .file(
+            "benches/fixture.rs",
+            r#"
+                fn main() {
+                    let content = std::fs::read_to_string("benches/data.txt").unwrap();
+                    assert_eq!(content, "fixture-data\n");
+                }
+            "#,
+        )
+        .build()
+        .cargo_wasix("bench --bench fixture")
+        .assert()
+        .success();
+    Ok(())
+}
+
+#[test]
 fn test_reads_fixture_without_defaults_fails() -> Result<()> {
     support::project()
         .file("tests/data.txt", "fixture-data\n")
