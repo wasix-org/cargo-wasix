@@ -21,6 +21,14 @@ subcommands. You can run `cargo wasix build -h` for more information to learn
 about flags that can be passed to `cargo wasix build`, which mirrors the
 `cargo build` command.
 
+TOOLCHAIN OVERRIDE:
+    +<toolchain>    Use the given rustup toolchain instead of the default
+                    `wasix` one, e.g. `cargo wasix +wasix-local build`.
+                    The toolchain must already be linked in rustup (see
+                    `rustup toolchain link`); it is never downloaded and
+                    the usual toolchain sanity checks are skipped, which
+                    makes it easy to test locally built toolchains.
+
 RUNTIME OPTIONS:
     -W,<ARGS>    Pass comma-separated arguments through to the WASIX runtime
                  (e.g. wasmer). Same idea as clang's -Wl,. Applies to run,

@@ -315,9 +315,27 @@ impl RustupToolchain {
 ///
 /// Also checks that the toolchain is correctly installed.
 ///
+/// When `override_name` is set (via the `+toolchain-name` CLI syntax), that
+/// rustup toolchain is used as-is: it is never installed automatically and
+/// the sanity checks are skipped, so locally built toolchains work.
+///
 /// Returns the path to the toolchain.
-pub fn ensure_toolchain(config: &Config) -> Result<RustupToolchain, anyhow::Error> {
+pub fn ensure_toolchain(
+    config: &Config,
+    override_name: Option<&str>,
+) -> Result<RustupToolchain, anyhow::Error> {
     let _lock = Config::acquire_lock()?;
+
+    if let Some(name) = override_name {
+        return match RustupToolchain::find_by_name(name)? {
+            Some(chain) => Ok(chain),
+            None => bail!(
+                "The toolchain {name} was not found in rustup. Note that toolchain \
+                 overrides are never installed automatically; link it first with \
+                 `rustup toolchain link {name} <path>`."
+            ),
+        };
+    }
 
     let toolchain = if let Some(chain) = RustupToolchain::find_by_name(RUSTUP_TOOLCHAIN_NAME)? {
         chain
