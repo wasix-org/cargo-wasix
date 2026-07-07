@@ -70,6 +70,9 @@ fn rmain(config: &mut Config) -> Result<()> {
     // e.g. `cargo wasix +wasix-local build`.
     let toolchain_override = match subcommand.as_deref().and_then(|s| s.strip_prefix('+')) {
         Some(name) => {
+            if name.is_empty() {
+                bail!("expected a toolchain name after `+`, e.g. `cargo wasix +wasix-local build`");
+            }
             let name = name.to_string();
             subcommand = args.next().and_then(|s| s.into_string().ok());
             Some(name)

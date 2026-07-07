@@ -24,10 +24,11 @@ about flags that can be passed to `cargo wasix build`, which mirrors the
 TOOLCHAIN OVERRIDE:
     +<toolchain>    Use the given rustup toolchain instead of the default
                     `wasix` one, e.g. `cargo wasix +wasix-local build`.
-                    The toolchain must already be linked in rustup (see
-                    `rustup toolchain link`); it is never downloaded and
-                    the usual toolchain sanity checks are skipped, which
-                    makes it easy to test locally built toolchains.
+                    The toolchain must already be present in rustup
+                    (installed, or linked via `rustup toolchain link`);
+                    it is never downloaded and the usual toolchain sanity
+                    checks are skipped, which makes it easy to test
+                    locally built toolchains.
 
 RUNTIME OPTIONS:
     -W,<ARGS>    Pass comma-separated arguments through to the WASIX runtime

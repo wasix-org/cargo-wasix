@@ -331,8 +331,9 @@ pub fn ensure_toolchain(
             Some(chain) => Ok(chain),
             None => bail!(
                 "The toolchain {name} was not found in rustup. Note that toolchain \
-                 overrides are never installed automatically; link it first with \
-                 `rustup toolchain link {name} <path>`."
+                 overrides are never installed automatically; install it with \
+                 `rustup toolchain install {name}` or link a local build with \
+                 `rustup toolchain link {name} <path>` first."
             ),
         };
     }
