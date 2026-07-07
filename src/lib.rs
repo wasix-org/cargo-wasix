@@ -64,7 +64,21 @@ fn rmain(config: &mut Config) -> Result<()> {
     let mut no_message_format = false;
     let mut args = env::args_os().skip(2);
 
-    let subcommand = args.next().and_then(|s| s.into_string().ok());
+    let mut subcommand = args.next().and_then(|s| s.into_string().ok());
+
+    // A leading `+toolchain-name` overrides the default `wasix` toolchain,
+    // e.g. `cargo wasix +wasix-local build`.
+    let toolchain_override = match subcommand.as_deref().and_then(|s| s.strip_prefix('+')) {
+        Some(name) => {
+            if name.is_empty() {
+                bail!("expected a toolchain name after `+`, e.g. `cargo wasix +wasix-local build`");
+            }
+            let name = name.to_string();
+            subcommand = args.next().and_then(|s| s.into_string().ok());
+            Some(name)
+        }
+        None => None,
+    };
     let subcommand = match subcommand.as_deref() {
         Some("build") => Subcommand::Build,
         Some("download-toolchain") => Subcommand::DownloadToolchain,
@@ -90,7 +104,10 @@ fn rmain(config: &mut Config) -> Result<()> {
     };
 
     let mut cargo = Command::new("cargo");
-    cargo.arg("+wasix");
+    cargo.arg(format!(
+        "+{}",
+        toolchain_override.as_deref().unwrap_or("wasix")
+    ));
     cargo.arg(match &subcommand {
         Subcommand::Build => "build",
         Subcommand::DownloadToolchain => "download-toolchain",
@@ -221,7 +238,7 @@ fn rmain(config: &mut Config) -> Result<()> {
     } else {
         None
     };
-    let toolchain = toolchain::ensure_toolchain(config)?;
+    let toolchain = toolchain::ensure_toolchain(config, toolchain_override.as_deref())?;
 
     // SAFETY: not safe in multi-threaded environment
     unsafe { std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name) };
