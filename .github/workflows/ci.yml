@@ -37,7 +37,7 @@ jobs:
       - name: Setup Wasmer
         uses: wasmerio/setup-wasmer@v2
         with:
-          version: "v7.1.0"
+          version: "prerelease"
       - name: test
         shell: bash
         run: cargo test --all-features -j1
