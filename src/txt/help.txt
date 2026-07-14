@@ -9,6 +9,7 @@ USAGE:
     cargo wasix bench [OPTIONS]
     cargo wasix check [OPTIONS]
     cargo wasix fix [OPTIONS]
+    cargo wasix init
     cargo wasix self clean
     cargo wasix self update-check
 
@@ -20,6 +21,13 @@ All options accepted are the same as that of the corresponding `cargo`
 subcommands. You can run `cargo wasix build -h` for more information to learn
 about flags that can be passed to `cargo wasix build`, which mirrors the
 `cargo build` command.
+
+INIT:
+    `cargo wasix init` writes the WASIX registry setup into the workspace's
+    .cargo/config.toml and does nothing else — no toolchain install, no
+    build. The same config is applied automatically by all other
+    subcommands; init exists to set up (or verify) a project explicitly,
+    e.g. before committing the config or in CI.
 
 TOOLCHAIN OVERRIDE:
     +<toolchain>    Use the given rustup toolchain instead of the default
