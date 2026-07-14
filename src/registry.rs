@@ -9,7 +9,7 @@
 //! replace-with = "wasix"
 //!
 //! [source.wasix]
-//! registry = "sparse+https://registry.wasix.org/"
+//! registry = "sparse+https://cargo-registry.wasix.org/"
 //! ```
 //!
 //! This module writes those stanzas into the workspace's cargo config,
@@ -28,7 +28,7 @@ use crate::config::Config;
 const SOURCE_NAME: &str = "wasix";
 
 /// URL of the WASIX overlay registry.
-const REGISTRY_URL: &str = "sparse+https://registry.wasix.org/";
+const REGISTRY_URL: &str = "sparse+https://cargo-registry.wasix.org/";
 
 /// Ensures the workspace's `.cargo/config.toml` routes crates.io through the
 /// WASIX overlay registry, creating or minimally editing the file as needed.
@@ -232,7 +232,7 @@ mod tests {
                         replace-with = \"wasix\"\n\
                         \n\
                         [source.wasix]\n\
-                        registry = \"sparse+https://registry.wasix.org/\"\n";
+                        registry = \"sparse+https://cargo-registry.wasix.org/\"\n";
         assert!(matches!(merge(Some(existing)).unwrap(), Merge::Unchanged));
     }
 

@@ -1035,7 +1035,7 @@ fn registry_config_written() -> Result<()> {
     assert!(written.contains("[source.crates-io]"), "{written}");
     assert!(written.contains("replace-with = \"wasix\""), "{written}");
     assert!(
-        written.contains("registry = \"sparse+https://registry.wasix.org/\""),
+        written.contains("registry = \"sparse+https://cargo-registry.wasix.org/\""),
         "{written}"
     );
 
