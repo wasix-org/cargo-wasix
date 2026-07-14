@@ -148,7 +148,9 @@ fn assert_mangled(wasm: &[u8]) -> Result<()> {
             };
             for name in functions {
                 let name = name?;
-                if name.name.contains("ZN") {
+                // Legacy mangling contains `ZN`; the v0 scheme used by newer
+                // toolchains prefixes symbols with `_R`.
+                if name.name.contains("ZN") || name.name.starts_with("_R") {
                     return Ok(());
                 }
             }
@@ -814,7 +816,10 @@ fn run_panic() -> Result<()> {
         .cargo_wasix("run")
         .assert()
         .stderr(
-            contains("Compiling foo v1.0.0").and(contains("thread 'main' panicked at src/main.rs")),
+            // Newer wasmer versions include a thread id: `thread 'main' (1) panicked`.
+            contains("Compiling foo v1.0.0").and(is_match(
+                r"thread 'main'( \(\d+\))? panicked at src/main.rs",
+            )?),
         )
         .failure();
     Ok(())
