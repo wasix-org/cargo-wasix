@@ -113,7 +113,9 @@ fn merge(existing: Option<&str>) -> Result<Merge> {
         .and_then(|s| s.get("crates-io"))
         .and_then(|t| t.get("replace-with"))
     {
-        let current = current.as_str().unwrap_or_default();
+        let Some(current) = current.as_str() else {
+            bail!("existing config has an unexpected shape for `source.crates-io.replace-with`");
+        };
         if current != SOURCE_NAME {
             return Ok(Merge::KeptForeignReplacement(current.to_string()));
         }
@@ -167,13 +169,20 @@ fn table_entry<'a>(table: &'a mut Table, key: &str) -> Result<&'a mut Table> {
     }
 }
 
-/// Replaces `path` via a temp file + rename so a crash can't leave a
-/// half-written config behind.
+/// Replaces `path` via a temp file + rename so a half-written config can
+/// never be observed.
 fn write_atomically(path: &Path, contents: &str) -> Result<()> {
     let dir = path.parent().expect("config path always has a parent");
     fs::create_dir_all(dir)?;
     let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
+    // Renaming over an existing file can fail on Windows, so remove the
+    // target first.
+    match fs::remove_file(path) {
+        Ok(()) => {}
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {}
+        Err(err) => return Err(err.into()),
+    }
     tmp.persist(path)?;
     Ok(())
 }
@@ -291,5 +300,6 @@ mod tests {
     fn unexpected_shape_is_refused() {
         assert!(merge(Some("source = 1\n")).is_err());
         assert!(merge(Some("[source]\ncrates-io = 1\n")).is_err());
+        assert!(merge(Some("[source.crates-io]\nreplace-with = 1\n")).is_err());
     }
 }
