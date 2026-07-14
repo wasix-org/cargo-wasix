@@ -1054,6 +1054,21 @@ fn registry_config_written() -> Result<()> {
 }
 
 #[test]
+fn registry_config_written_on_tree() -> Result<()> {
+    // `tree` resolves the dependency graph too, so it must go through the
+    // overlay registry like a build would.
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .build();
+
+    p.cargo_wasix("tree").assert().success();
+
+    let written = std::fs::read_to_string(p.root().join(".cargo").join("config.toml"))?;
+    assert!(written.contains("replace-with = \"wasix\""), "{written}");
+    Ok(())
+}
+
+#[test]
 fn registry_config_preserves_existing() -> Result<()> {
     let p = support::project()
         .file("src/main.rs", "fn main() {}")

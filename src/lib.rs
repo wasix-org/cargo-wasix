@@ -186,7 +186,6 @@ fn rmain(config: &mut Config) -> Result<()> {
         .map(|runner_override| (runner_override, false))
         .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
-    let mut write_registry_config = false;
     match &subcommand {
         Subcommand::DownloadToolchain => {
             let version = cargo_args
@@ -204,7 +203,6 @@ fn rmain(config: &mut Config) -> Result<()> {
             return Ok(());
         }
         Subcommand::Run | Subcommand::Bench | Subcommand::Test => {
-            write_registry_config = true;
             if !using_default {
                 // check if the override is either a valid path or command found on $PATH
                 if !(Path::new(&wasix_runner).exists() || which::which(&wasix_runner).is_ok()) {
@@ -231,8 +229,7 @@ fn rmain(config: &mut Config) -> Result<()> {
             cargo.env("__CARGO_WASIX_RUNNER_SHIM", "1");
             cargo.env(runner_env_var, env::current_exe()?);
         }
-        Subcommand::Build | Subcommand::Check => write_registry_config = true,
-        Subcommand::Tree | Subcommand::Fix => {}
+        Subcommand::Build | Subcommand::Check | Subcommand::Tree | Subcommand::Fix => {}
     }
 
     let update_check_opt = if config.is_offline {
@@ -257,9 +254,11 @@ fn rmain(config: &mut Config) -> Result<()> {
     }
 
     // Make sure the project resolves crates through the WASIX overlay
-    // registry before running cargo.
-    if write_registry_config
-        && let Some(workspace_root) = &workspace_root
+    // registry before running cargo. Every subcommand from here on resolves
+    // the dependency graph (`download-toolchain` returned above), including
+    // `tree` (which should show the fork versions a build would use) and
+    // `fix` (which compiles just like `check`).
+    if let Some(workspace_root) = &workspace_root
         && let Err(err) = registry::ensure_config(config, workspace_root)
     {
         config.warn(&format!("failed to configure the WASIX registry: {err:#}"));
