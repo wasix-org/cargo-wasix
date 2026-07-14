@@ -959,7 +959,6 @@ fn self_bad() {
         .code(1);
 }
 
-// REMOVE ME: The cargo wasix build with workspace doens't work with incompatible crates PR
 #[test]
 fn workspace_works() -> Result<()> {
     let p = support::project()
@@ -1021,50 +1020,75 @@ fn verbose_build_script_works() -> Result<()> {
 }
 
 #[test]
-fn dependencies_check() -> Result<()> {
+fn registry_config_written() -> Result<()> {
     let p = support::project()
         .file("src/main.rs", "fn main() {}")
-        .file(
-            "Cargo.toml",
-            r#"
-                [package]
-                name = "foo"
-                version = '1.0.0'
-
-                [dependencies]
-                mio = "0.8.8"
-            "#,
-        )
         .build();
 
     p.cargo_wasix("check")
         .assert()
-        .stderr(predicates::str::contains("Found incompatible crates in dependencies (of dependencies): libc, mio\n\nTo fix this add the following to \'Cargo.toml\':\n[patch.crates-io]\nlibc = { git = \"https://github.com/wasix-org/libc\", branch = \"master\" }\nmio = { git = \"https://github.com/wasix-org/mio\" }\n\nYou might have to run `cargo update` to ensure the dependencies are used properly\n"))
+        .stderr(contains("to resolve crates through the WASIX registry"))
         .success();
+
+    let config_path = p.root().join(".cargo").join("config.toml");
+    let written = std::fs::read_to_string(&config_path)?;
+    assert!(written.contains("[source.crates-io]"), "{written}");
+    assert!(written.contains("replace-with = \"wasix\""), "{written}");
+    assert!(
+        written.contains("registry = \"sparse+https://registry.wasix.org/\""),
+        "{written}"
+    );
+
+    // A second run finds the config in place and doesn't rewrite it.
+    p.cargo_wasix("check")
+        .assert()
+        .stderr(contains("to resolve crates through the WASIX registry").not())
+        .success();
+    assert_eq!(std::fs::read_to_string(&config_path)?, written);
     Ok(())
 }
 
 #[test]
-fn dependencies_replaced_are_ignored() -> Result<()> {
+fn registry_config_preserves_existing() -> Result<()> {
     let p = support::project()
         .file("src/main.rs", "fn main() {}")
         .file(
-            "Cargo.toml",
-            r#"
-                [package]
-                name = "foo"
-                version = '1.0.0'
-
-                [dependencies]
-                mio = "0.8.8"
-
-                [patch.crates-io]
-                mio = { git = "https://github.com/wasix-org/mio" }
-                libc = { git = "https://github.com/wasix-org/libc" }
-            "#,
+            ".cargo/config.toml",
+            "# keep me\n\
+             [build]\n\
+             jobs = 2\n",
         )
         .build();
 
-    p.cargo_wasix("check").assert().stdout("").success();
+    p.cargo_wasix("check").assert().success();
+
+    let written = std::fs::read_to_string(p.root().join(".cargo").join("config.toml"))?;
+    assert!(written.contains("# keep me"), "{written}");
+    assert!(written.contains("jobs = 2"), "{written}");
+    assert!(written.contains("replace-with = \"wasix\""), "{written}");
+    Ok(())
+}
+
+#[test]
+fn registry_config_respects_existing_replacement() -> Result<()> {
+    let existing = "[source.crates-io]\n\
+                    replace-with = \"my-mirror\"\n\
+                    \n\
+                    [source.my-mirror]\n\
+                    registry = \"sparse+https://mirror.invalid/\"\n";
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(".cargo/config.toml", existing)
+        .build();
+
+    p.cargo_wasix("check")
+        .assert()
+        .stderr(contains(
+            "already replaces crates-io with source `my-mirror`",
+        ))
+        .success();
+
+    let written = std::fs::read_to_string(p.root().join(".cargo").join("config.toml"))?;
+    assert_eq!(written, existing);
     Ok(())
 }

@@ -14,8 +14,8 @@ use tool_path::ToolPath;
 mod args;
 mod cache;
 mod config;
-mod dependencies;
 mod internal;
+mod registry;
 mod runtime;
 mod tool_path;
 mod toolchain;
@@ -119,10 +119,12 @@ fn rmain(config: &mut Config) -> Result<()> {
         Subcommand::Run => "run",
     });
 
-    let manifest_config = if matches!(&subcommand, Subcommand::DownloadToolchain) {
-        Default::default()
+    let (manifest_config, workspace_root) = if matches!(&subcommand, Subcommand::DownloadToolchain)
+    {
+        (Default::default(), None)
     } else {
-        read_manifest_config()?
+        let (manifest_config, workspace_root) = read_manifest_config()?;
+        (manifest_config, Some(workspace_root))
     };
 
     let target = if manifest_config.dl.unwrap_or(false) {
@@ -184,7 +186,7 @@ fn rmain(config: &mut Config) -> Result<()> {
         .map(|runner_override| (runner_override, false))
         .unwrap_or_else(|_| ("wasmer".to_string(), true));
 
-    let mut check_deps = false;
+    let mut write_registry_config = false;
     match &subcommand {
         Subcommand::DownloadToolchain => {
             let version = cargo_args
@@ -202,7 +204,7 @@ fn rmain(config: &mut Config) -> Result<()> {
             return Ok(());
         }
         Subcommand::Run | Subcommand::Bench | Subcommand::Test => {
-            check_deps = true;
+            write_registry_config = true;
             if !using_default {
                 // check if the override is either a valid path or command found on $PATH
                 if !(Path::new(&wasix_runner).exists() || which::which(&wasix_runner).is_ok()) {
@@ -229,7 +231,7 @@ fn rmain(config: &mut Config) -> Result<()> {
             cargo.env("__CARGO_WASIX_RUNNER_SHIM", "1");
             cargo.env(runner_env_var, env::current_exe()?);
         }
-        Subcommand::Build | Subcommand::Check => check_deps = true,
+        Subcommand::Build | Subcommand::Check => write_registry_config = true,
         Subcommand::Tree | Subcommand::Fix => {}
     }
 
@@ -254,9 +256,13 @@ fn rmain(config: &mut Config) -> Result<()> {
         }
     }
 
-    // Check the dependencies, if needed, before running cargo.
-    if check_deps && let Err(err) = dependencies::check(config, target) {
-        config.warn(&format!("failed to check dependencies: {err}"));
+    // Make sure the project resolves crates through the WASIX overlay
+    // registry before running cargo.
+    if write_registry_config
+        && let Some(workspace_root) = &workspace_root
+        && let Err(err) = registry::ensure_config(config, workspace_root)
+    {
+        config.warn(&format!("failed to configure the WASIX registry: {err:#}"));
     }
 
     // Run the cargo commands
@@ -468,7 +474,7 @@ fn run_wasm_opt(
     Ok(())
 }
 
-fn read_manifest_config() -> Result<ManifestConfig> {
+fn read_manifest_config() -> Result<(ManifestConfig, PathBuf)> {
     let output = Command::new("cargo")
         .arg("metadata")
         .arg("--no-deps")
@@ -477,7 +483,8 @@ fn read_manifest_config() -> Result<ManifestConfig> {
     let metadata = serde_json::from_str::<CargoMetadata>(&output)
         .context("failed to deserialize `cargo metadata`")?;
 
-    let manifest = Path::new(&metadata.workspace_root).join("Cargo.toml");
+    let workspace_root = PathBuf::from(metadata.workspace_root);
+    let manifest = workspace_root.join("Cargo.toml");
     let toml = fs::read_to_string(&manifest)
         .context(format!("failed to read manifest: {}", manifest.display()))?;
     let toml = toml::from_str::<CargoManifest>(&toml).context(format!(
@@ -485,11 +492,8 @@ fn read_manifest_config() -> Result<ManifestConfig> {
         manifest.display()
     ))?;
 
-    if let Some(meta) = toml.package.and_then(|p| p.metadata) {
-        Ok(meta)
-    } else {
-        Ok(ManifestConfig::default())
-    }
+    let manifest_config = toml.package.and_then(|p| p.metadata).unwrap_or_default();
+    Ok((manifest_config, workspace_root))
 }
 
 /// Executes the `cargo` command, reading all of the JSON that pops out and
