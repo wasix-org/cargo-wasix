@@ -30,11 +30,31 @@ const SOURCE_NAME: &str = "wasix";
 /// URL of the WASIX overlay registry.
 const REGISTRY_URL: &str = "sparse+https://cargo-registry.wasix.org/";
 
+/// What [`ensure_config`] did.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// The registry stanzas were written.
+    Updated,
+    /// The config already routes crates.io through the registry.
+    AlreadyConfigured,
+    /// crates-io is replaced with some other source; a warning was printed
+    /// and the config was left untouched.
+    KeptForeignReplacement,
+}
+
+/// `cargo wasix init`: applies the registry config and nothing else.
+pub fn init(config: &Config, workspace_root: &Path) -> Result<()> {
+    if ensure_config(config, workspace_root)? == Outcome::AlreadyConfigured {
+        config.info("the WASIX registry is already configured");
+    }
+    Ok(())
+}
+
 /// Ensures the workspace's `.cargo/config.toml` routes crates.io through the
 /// WASIX overlay registry, creating or minimally editing the file as needed.
 /// Existing content — including a crates-io replacement pointing somewhere
 /// else, or a custom URL for the `wasix` source — is left untouched.
-pub fn ensure_config(config: &Config, workspace_root: &Path) -> Result<()> {
+pub fn ensure_config(config: &Config, workspace_root: &Path) -> Result<Outcome> {
     let path = config_path(workspace_root);
 
     let existing = match fs::read_to_string(&path) {
@@ -46,7 +66,7 @@ pub fn ensure_config(config: &Config, workspace_root: &Path) -> Result<()> {
     };
 
     match merge(existing.as_deref())? {
-        Merge::Unchanged => Ok(()),
+        Merge::Unchanged => Ok(Outcome::AlreadyConfigured),
         Merge::KeptForeignReplacement(source) => {
             config.warn(&format!(
                 "`{}` already replaces crates-io with source `{source}`; leaving it \
@@ -55,7 +75,7 @@ pub fn ensure_config(config: &Config, workspace_root: &Path) -> Result<()> {
                  resolve WASIX-only versions.",
                 path.display(),
             ));
-            Ok(())
+            Ok(Outcome::KeptForeignReplacement)
         }
         Merge::Updated(new_contents) => {
             write_atomically(&path, &new_contents)
@@ -67,7 +87,7 @@ pub fn ensure_config(config: &Config, workspace_root: &Path) -> Result<()> {
                     path.display()
                 ),
             );
-            Ok(())
+            Ok(Outcome::Updated)
         }
     }
 }

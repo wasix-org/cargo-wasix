@@ -1054,6 +1054,30 @@ fn registry_config_written() -> Result<()> {
 }
 
 #[test]
+fn init_writes_config_and_nothing_else() -> Result<()> {
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .build();
+
+    p.cargo_wasix("init")
+        .assert()
+        .stderr(contains("to resolve crates through the WASIX registry"))
+        .success();
+
+    let written = std::fs::read_to_string(p.root().join(".cargo").join("config.toml"))?;
+    assert!(written.contains("replace-with = \"wasix\""), "{written}");
+    // No build happened.
+    assert!(!p.build_dir().exists());
+
+    // Re-running reports there's nothing to do.
+    p.cargo_wasix("init")
+        .assert()
+        .stderr(contains("the WASIX registry is already configured"))
+        .success();
+    Ok(())
+}
+
+#[test]
 fn registry_config_written_on_tree() -> Result<()> {
     // `tree` resolves the dependency graph too, so it must go through the
     // overlay registry like a build would.

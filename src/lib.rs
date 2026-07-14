@@ -91,6 +91,10 @@ fn rmain(config: &mut Config) -> Result<()> {
             Subcommand::Tree
         }
         Some("fix") => Subcommand::Fix,
+        Some("init") => {
+            let (_, workspace_root) = read_manifest_config()?;
+            return registry::init(config, &workspace_root);
+        }
         Some("self") => return internal::main(&args.collect::<Vec<_>>(), config),
         Some("version") | Some("-V") | Some("--version") => {
             let git_info = match option_env!("GIT_INFO") {
