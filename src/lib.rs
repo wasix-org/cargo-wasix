@@ -257,18 +257,29 @@ fn rmain(config: &mut Config) -> Result<()> {
         }
     }
 
-    // Set CC to wasixcc if it's available and not already set
-    if std::env::var("CC").is_err() && which::which("wasixcc").is_ok() {
-        // SAFETY: not safe in multi-threaded environment
-        unsafe { env::set_var("CC", "wasixcc") };
-        config.verbose(|| config.info("Set CC=wasixcc"));
-    }
-
-    // Set CXX to wasixcc++ if it's available and not already set
-    if std::env::var("CXX").is_err() && which::which("wasixcc++").is_ok() {
-        // SAFETY: not safe in multi-threaded environment
-        unsafe { env::set_var("CXX", "wasixcc++") };
-        config.verbose(|| config.info("Set CXX=wasixcc++"));
+    // Point the `cc` crate (and anything else honoring its conventions) at
+    // the wasixcc toolchain when it's installed. The variables are scoped to
+    // the target — `cc` checks `CC_<target>` before `TARGET_CC` and `CC` —
+    // so a host compiler configured in the user's environment neither blocks
+    // this nor leaks into the WASIX build, and the user's generic setting is
+    // never touched. A target-scoped variable already set by the user (in
+    // either the dashed or underscored spelling) is respected.
+    for (tool, wasix_tool) in [
+        ("CC", "wasixcc"),
+        ("CXX", "wasixcc++"),
+        ("AR", "wasixar"),
+        ("RANLIB", "wasixranlib"),
+    ] {
+        let dashed = format!("{tool}_{target}");
+        let underscored = format!("{tool}_{}", target.replace('-', "_"));
+        if env::var_os(&dashed).is_some() || env::var_os(&underscored).is_some() {
+            continue;
+        }
+        if which::which(wasix_tool).is_ok() {
+            // SAFETY: not safe in multi-threaded environment
+            unsafe { env::set_var(&underscored, wasix_tool) };
+            config.verbose(|| config.info(&format!("Set {underscored}={wasix_tool}")));
+        }
     }
 
     // For the -dl target, set wasixcc-specific environment variables

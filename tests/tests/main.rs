@@ -1138,56 +1138,83 @@ fn registry_config_respects_existing_replacement() -> Result<()> {
 }
 #[test]
 fn wasixcc_env_vars_set() -> Result<()> {
-    // Test that CC and CXX are set to wasixcc/wasixcc++ when available
+    // The wasixcc tools are pointed at via target-scoped variables (the ones
+    // the `cc` crate checks first), so a host compiler in the generic CC/CXX
+    // never blocks them and is never modified.
+    if which::which("wasixcc").is_err() {
+        eprintln!("SKIPPED wasixcc_env_vars_set: wasixcc not on PATH");
+        return Ok(());
+    }
+
     let p = support::project()
         .file("src/main.rs", "fn main() {}")
         .file(
             "build.rs",
             r#"
                 fn main() {
-                    if let Ok(cc) = std::env::var("CC") {
-                        println!("cargo:warning=CC is set to: {}", cc);
-                    } else {
-                        println!("cargo:warning=CC is not set");
+                    for var in [
+                        "CC_wasm32_wasmer_wasi",
+                        "CXX_wasm32_wasmer_wasi",
+                        "AR_wasm32_wasmer_wasi",
+                        "CC",
+                    ] {
+                        // Changed env vars must re-run this script, or later
+                        // builds replay the first run's cached warnings.
+                        println!("cargo:rerun-if-env-changed={}", var);
+                        match std::env::var(var) {
+                            Ok(v) => println!("cargo:warning={} is set to: {}", var, v),
+                            Err(_) => println!("cargo:warning={} is not set", var),
+                        }
                     }
-                    if let Ok(cxx) = std::env::var("CXX") {
-                        println!("cargo:warning=CXX is set to: {}", cxx);
-                    } else {
-                        println!("cargo:warning=CXX is not set");
-                    }
+                    println!("cargo:rerun-if-env-changed=CC_wasm32-wasmer-wasi");
                 }
-            "#,
-        )
-        .file(
-            "Cargo.toml",
-            r#"
-                [package]
-                name = "foo"
-                version = '1.0.0'
             "#,
         )
         .build();
 
-    let output = p.cargo_wasix("build").assert().success();
+    // A generic host CC in the environment must not block the target-scoped
+    // variables (and must be passed through untouched).
+    let mut cmd = p.cargo_wasix("build");
+    cmd.env("CC", "host-cc-do-not-use");
+    let output = cmd.assert().success();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("CC_wasm32_wasmer_wasi is set to: wasixcc"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("CXX_wasm32_wasmer_wasi is set to: wasixcc++"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("AR_wasm32_wasmer_wasi is set to: wasixar"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("CC is set to: host-cc-do-not-use"),
+        "{stderr}"
+    );
 
-    // If wasixcc is available, CC should be set to wasixcc
-    if which::which("wasixcc").is_ok() {
-        assert!(
-            stderr.contains("CC is set to: wasixcc"),
-            "Expected CC to be set to wasixcc when wasixcc is available, stderr:\n{}",
-            stderr
-        );
-    }
+    // A user-set target-scoped variable wins over the wasixcc default.
+    let mut cmd = p.cargo_wasix("build");
+    cmd.env("CC_wasm32_wasmer_wasi", "my-custom-wasix-cc");
+    let output = cmd.assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("CC_wasm32_wasmer_wasi is set to: my-custom-wasix-cc"),
+        "{stderr}"
+    );
 
-    // If wasixcc++ is available, CXX should be set to wasixcc++
-    if which::which("wasixcc++").is_ok() {
-        assert!(
-            stderr.contains("CXX is set to: wasixcc++"),
-            "Expected CXX to be set to wasixcc++ when wasixcc++ is available, stderr:\n{}",
-            stderr
-        );
-    }
+    // The dashed spelling (checked first by `cc`) also counts as a user
+    // override: the underscored variant must not be set on top of it.
+    let mut cmd = p.cargo_wasix("build");
+    cmd.env("CC_wasm32-wasmer-wasi", "my-dashed-wasix-cc");
+    let output = cmd.assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("CC_wasm32_wasmer_wasi is not set"),
+        "{stderr}"
+    );
 
     Ok(())
 }
