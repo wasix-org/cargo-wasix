@@ -257,6 +257,36 @@ fn rmain(config: &mut Config) -> Result<()> {
         }
     }
 
+    // Set CC to wasixcc if it's available and not already set
+    if std::env::var("CC").is_err() && which::which("wasixcc").is_ok() {
+        // SAFETY: not safe in multi-threaded environment
+        unsafe { env::set_var("CC", "wasixcc") };
+        config.verbose(|| config.info("Set CC=wasixcc"));
+    }
+
+    // Set CXX to wasixcc++ if it's available and not already set
+    if std::env::var("CXX").is_err() && which::which("wasixcc++").is_ok() {
+        // SAFETY: not safe in multi-threaded environment
+        unsafe { env::set_var("CXX", "wasixcc++") };
+        config.verbose(|| config.info("Set CXX=wasixcc++"));
+    }
+
+    // For the -dl target, set wasixcc-specific environment variables
+    if target.ends_with("-dl") {
+        // Enable position-independent code for dynamic linking
+        if std::env::var("WASIXCC_PIC").is_err() {
+            // SAFETY: not safe in multi-threaded environment
+            unsafe { env::set_var("WASIXCC_PIC", "1") };
+            config.verbose(|| config.info("Set WASIXCC_PIC=1 for -dl target"));
+        }
+        // Enable WASM exceptions for better performance and C++ exception support
+        if std::env::var("WASIXCC_WASM_EXCEPTIONS").is_err() {
+            // SAFETY: not safe in multi-threaded environment
+            unsafe { env::set_var("WASIXCC_WASM_EXCEPTIONS", "1") };
+            config.verbose(|| config.info("Set WASIXCC_WASM_EXCEPTIONS=1 for -dl target"));
+        }
+    }
+
     // Make sure the project resolves crates through the WASIX overlay
     // registry before running cargo. Every subcommand from here on resolves
     // the dependency graph (`download-toolchain` returned above), including
