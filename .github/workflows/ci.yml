@@ -38,6 +38,14 @@ jobs:
         uses: wasmerio/setup-wasmer@v2
         with:
           version: "prerelease"
+      - name: Set up wasixcc
+        # Puts wasixcc/wasixcc++/wasixar on PATH so the wasixcc integration
+        # tests exercise the real thing instead of skipping.
+        uses: wasix-org/wasixcc@v0.4.3
+        with:
+          # Authenticated GitHub API requests/downloads; without this the
+          # action hits anonymous per-IP rate limits on shared runners.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: test
         shell: bash
         run: cargo test --all-features -j1

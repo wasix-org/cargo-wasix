@@ -257,6 +257,47 @@ fn rmain(config: &mut Config) -> Result<()> {
         }
     }
 
+    // Point the `cc` crate (and anything else honoring its conventions) at
+    // the wasixcc toolchain when it's installed. The variables are scoped to
+    // the target — `cc` checks `CC_<target>` before `TARGET_CC` and `CC` —
+    // so a host compiler configured in the user's environment neither blocks
+    // this nor leaks into the WASIX build, and the user's generic setting is
+    // never touched. A target-scoped variable already set by the user (in
+    // either the dashed or underscored spelling) is respected.
+    for (tool, wasix_tool) in [
+        ("CC", "wasixcc"),
+        ("CXX", "wasixcc++"),
+        ("AR", "wasixar"),
+        ("RANLIB", "wasixranlib"),
+    ] {
+        let dashed = format!("{tool}_{target}");
+        let underscored = format!("{tool}_{}", target.replace('-', "_"));
+        if env::var_os(&dashed).is_some() || env::var_os(&underscored).is_some() {
+            continue;
+        }
+        if which::which(wasix_tool).is_ok() {
+            // SAFETY: not safe in multi-threaded environment
+            unsafe { env::set_var(&underscored, wasix_tool) };
+            config.verbose(|| config.info(&format!("Set {underscored}={wasix_tool}")));
+        }
+    }
+
+    // For the -dl target, set wasixcc-specific environment variables
+    if target.ends_with("-dl") {
+        // Enable position-independent code for dynamic linking
+        if std::env::var("WASIXCC_PIC").is_err() {
+            // SAFETY: not safe in multi-threaded environment
+            unsafe { env::set_var("WASIXCC_PIC", "1") };
+            config.verbose(|| config.info("Set WASIXCC_PIC=1 for -dl target"));
+        }
+        // Enable WASM exceptions for better performance and C++ exception support
+        if std::env::var("WASIXCC_WASM_EXCEPTIONS").is_err() {
+            // SAFETY: not safe in multi-threaded environment
+            unsafe { env::set_var("WASIXCC_WASM_EXCEPTIONS", "1") };
+            config.verbose(|| config.info("Set WASIXCC_WASM_EXCEPTIONS=1 for -dl target"));
+        }
+    }
+
     // Make sure the project resolves crates through the WASIX overlay
     // registry before running cargo. Every subcommand from here on resolves
     // the dependency graph (`download-toolchain` returned above), including

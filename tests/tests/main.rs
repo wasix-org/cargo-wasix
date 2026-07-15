@@ -1155,3 +1155,134 @@ fn registry_config_respects_existing_replacement() -> Result<()> {
     assert_eq!(written, existing);
     Ok(())
 }
+#[test]
+fn wasixcc_env_vars_set() -> Result<()> {
+    // The wasixcc tools are pointed at via target-scoped variables (the ones
+    // the `cc` crate checks first), so a host compiler in the generic CC/CXX
+    // never blocks them and is never modified.
+    if which::which("wasixcc").is_err() {
+        eprintln!("SKIPPED wasixcc_env_vars_set: wasixcc not on PATH");
+        return Ok(());
+    }
+
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "build.rs",
+            r#"
+                fn main() {
+                    for var in [
+                        "CC_wasm32_wasmer_wasi",
+                        "CXX_wasm32_wasmer_wasi",
+                        "AR_wasm32_wasmer_wasi",
+                        "CC",
+                    ] {
+                        // Changed env vars must re-run this script, or later
+                        // builds replay the first run's cached warnings.
+                        println!("cargo:rerun-if-env-changed={}", var);
+                        match std::env::var(var) {
+                            Ok(v) => println!("cargo:warning={} is set to: {}", var, v),
+                            Err(_) => println!("cargo:warning={} is not set", var),
+                        }
+                    }
+                    println!("cargo:rerun-if-env-changed=CC_wasm32-wasmer-wasi");
+                }
+            "#,
+        )
+        .build();
+
+    // A generic host CC in the environment must not block the target-scoped
+    // variables (and must be passed through untouched).
+    let mut cmd = p.cargo_wasix("build");
+    cmd.env("CC", "host-cc-do-not-use");
+    let output = cmd.assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("CC_wasm32_wasmer_wasi is set to: wasixcc"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("CXX_wasm32_wasmer_wasi is set to: wasixcc++"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("AR_wasm32_wasmer_wasi is set to: wasixar"),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("CC is set to: host-cc-do-not-use"),
+        "{stderr}"
+    );
+
+    // A user-set target-scoped variable wins over the wasixcc default.
+    let mut cmd = p.cargo_wasix("build");
+    cmd.env("CC_wasm32_wasmer_wasi", "my-custom-wasix-cc");
+    let output = cmd.assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("CC_wasm32_wasmer_wasi is set to: my-custom-wasix-cc"),
+        "{stderr}"
+    );
+
+    // The dashed spelling (checked first by `cc`) also counts as a user
+    // override: the underscored variant must not be set on top of it.
+    let mut cmd = p.cargo_wasix("build");
+    cmd.env("CC_wasm32-wasmer-wasi", "my-dashed-wasix-cc");
+    let output = cmd.assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(
+        stderr.contains("CC_wasm32_wasmer_wasi is not set"),
+        "{stderr}"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
+    // Test that WASIXCC_PIC and WASIXCC_WASM_EXCEPTIONS are set for -dl target
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .file(
+            "build.rs",
+            r#"
+                fn main() {
+                    if let Ok(pic) = std::env::var("WASIXCC_PIC") {
+                        println!("cargo:warning=WASIXCC_PIC is set to: {}", pic);
+                    }
+                    if let Ok(exceptions) = std::env::var("WASIXCC_WASM_EXCEPTIONS") {
+                        println!("cargo:warning=WASIXCC_WASM_EXCEPTIONS is set to: {}", exceptions);
+                    }
+                }
+            "#,
+        )
+        .file(
+            "Cargo.toml",
+            r#"
+                [package]
+                name = "foo"
+                version = '1.0.0'
+                
+                [package.metadata]
+                dl = true
+            "#,
+        )
+        .build();
+
+    let output = p.cargo_wasix("build").assert().success();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+
+    // For -dl target, WASIXCC_PIC and WASIXCC_WASM_EXCEPTIONS should be set
+    assert!(
+        stderr.contains("WASIXCC_PIC is set to: 1"),
+        "Expected WASIXCC_PIC=1 for -dl target, stderr:\n{}",
+        stderr
+    );
+    assert!(
+        stderr.contains("WASIXCC_WASM_EXCEPTIONS is set to: 1"),
+        "Expected WASIXCC_WASM_EXCEPTIONS=1 for -dl target, stderr:\n{}",
+        stderr
+    );
+
+    Ok(())
+}
