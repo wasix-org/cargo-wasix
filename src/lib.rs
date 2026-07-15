@@ -483,7 +483,11 @@ fn run_wasm_opt(
     cmd.arg("--enable-threads");
     cmd.arg("--enable-reference-types");
     cmd.arg("--no-validation");
-    cmd.arg("--translate-to-exnref");
+    // `--emit-exnref` runs the legacy-EH-to-exnref translation at the end of
+    // the whole pass pipeline regardless of argument order (unlike
+    // `--translate-to-exnref`, which is an ordinary pass executed at its
+    // position on the command line).
+    cmd.arg("--emit-exnref");
 
     if !build.enable_producers_section(profile) {
         cmd.arg("--strip-producers");
