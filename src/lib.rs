@@ -262,7 +262,8 @@ fn rmain(config: &mut Config) -> Result<()> {
     // the dependency graph (`download-toolchain` returned above), including
     // `tree` (which should show the fork versions a build would use) and
     // `fix` (which compiles just like `check`).
-    if let Some(workspace_root) = &workspace_root
+    if !registry::config_write_disabled()
+        && let Some(workspace_root) = &workspace_root
         && let Err(err) = registry::ensure_config(config, workspace_root)
     {
         config.warn(&format!("failed to configure the WASIX registry: {err:#}"));
