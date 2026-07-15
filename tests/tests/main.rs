@@ -1054,6 +1054,25 @@ fn registry_config_written() -> Result<()> {
 }
 
 #[test]
+fn registry_config_write_can_be_disabled() -> Result<()> {
+    let p = support::project()
+        .file("src/main.rs", "fn main() {}")
+        .build();
+
+    let mut cmd = p.cargo_wasix("check");
+    cmd.env("CARGO_WASIX_NO_REGISTRY_CONFIG", "1");
+    cmd.assert().success();
+    assert!(!p.root().join(".cargo").exists());
+
+    // An explicit init still works with the variable set.
+    let mut cmd = p.cargo_wasix("init");
+    cmd.env("CARGO_WASIX_NO_REGISTRY_CONFIG", "1");
+    cmd.assert().success();
+    assert!(p.root().join(".cargo").join("config.toml").exists());
+    Ok(())
+}
+
+#[test]
 fn init_writes_config_and_nothing_else() -> Result<()> {
     let p = support::project()
         .file("src/main.rs", "fn main() {}")

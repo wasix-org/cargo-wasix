@@ -27,7 +27,10 @@ INIT:
     .cargo/config.toml and does nothing else — no toolchain install, no
     build. The same config is applied automatically by all other
     subcommands; init exists to set up (or verify) a project explicitly,
-    e.g. before committing the config or in CI.
+    e.g. before committing the config or in CI. Set
+    CARGO_WASIX_NO_REGISTRY_CONFIG=1 (or true/yes) to disable the automatic
+    write, e.g. to build a project that deliberately does not resolve
+    through the WASIX registry.
 
 TOOLCHAIN OVERRIDE:
     +<toolchain>    Use the given rustup toolchain instead of the default

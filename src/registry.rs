@@ -42,6 +42,15 @@ pub enum Outcome {
     KeptForeignReplacement,
 }
 
+/// Whether the automatic registry-config write is disabled via environment
+/// variable. Escape hatch for building without the overlay registry (e.g.
+/// bootstrapping the registry itself while it's down); an explicit
+/// `cargo wasix init` still works.
+pub fn config_write_disabled() -> bool {
+    std::env::var("CARGO_WASIX_NO_REGISTRY_CONFIG")
+        .is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true") || v.eq_ignore_ascii_case("yes"))
+}
+
 /// `cargo wasix init`: applies the registry config and nothing else.
 pub fn init(config: &Config, workspace_root: &Path) -> Result<()> {
     if ensure_config(config, workspace_root)? == Outcome::AlreadyConfigured {
