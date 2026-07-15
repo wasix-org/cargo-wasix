@@ -282,20 +282,24 @@ fn rmain(config: &mut Config) -> Result<()> {
         }
     }
 
-    // For the -dl target, set wasixcc-specific environment variables
-    if target.ends_with("-dl") {
-        // Enable position-independent code for dynamic linking
-        if std::env::var("WASIXCC_PIC").is_err() {
-            // SAFETY: not safe in multi-threaded environment
-            unsafe { env::set_var("WASIXCC_PIC", "1") };
-            config.verbose(|| config.info("Set WASIXCC_PIC=1 for -dl target"));
-        }
-        // Enable WASM exceptions for better performance and C++ exception support
-        if std::env::var("WASIXCC_WASM_EXCEPTIONS").is_err() {
-            // SAFETY: not safe in multi-threaded environment
-            unsafe { env::set_var("WASIXCC_WASM_EXCEPTIONS", "1") };
-            config.verbose(|| config.info("Set WASIXCC_WASM_EXCEPTIONS=1 for -dl target"));
-        }
+    // The Rust toolchain builds in the legacy exception-handling
+    // configuration (its sysroot is the legacy-EH wasix-libc build), while
+    // wasixcc defaults to exnref. Force wasixcc to legacy — overriding any
+    // value from the environment — so C/C++ objects match the Rust side of
+    // the binary; wasm-opt translates the whole module to exnref afterwards.
+    if which::which("wasixcc").is_ok() {
+        // SAFETY: not safe in multi-threaded environment
+        unsafe { env::set_var("WASIXCC_WASM_EXCEPTIONS", "legacy") };
+        config.verbose(|| config.info("Set WASIXCC_WASM_EXCEPTIONS=legacy"));
+    }
+
+    // For the -dl target, enable position-independent code for dynamic
+    // linking (with legacy EH above, this selects wasixcc's sysroot-ehpic —
+    // the same configuration the Rust toolchain's dl sysroot uses).
+    if target.ends_with("-dl") && std::env::var("WASIXCC_PIC").is_err() {
+        // SAFETY: not safe in multi-threaded environment
+        unsafe { env::set_var("WASIXCC_PIC", "1") };
+        config.verbose(|| config.info("Set WASIXCC_PIC=1 for -dl target"));
     }
 
     // Make sure the project resolves crates through the WASIX overlay

@@ -1247,11 +1247,11 @@ fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
             "build.rs",
             r#"
                 fn main() {
-                    if let Ok(pic) = std::env::var("WASIXCC_PIC") {
-                        println!("cargo:warning=WASIXCC_PIC is set to: {}", pic);
-                    }
-                    if let Ok(exceptions) = std::env::var("WASIXCC_WASM_EXCEPTIONS") {
-                        println!("cargo:warning=WASIXCC_WASM_EXCEPTIONS is set to: {}", exceptions);
+                    for var in ["WASIXCC_PIC", "WASIXCC_WASM_EXCEPTIONS"] {
+                        println!("cargo:rerun-if-env-changed={}", var);
+                        if let Ok(v) = std::env::var(var) {
+                            println!("cargo:warning={} is set to: {}", var, v);
+                        }
                     }
                 }
             "#,
@@ -1262,7 +1262,7 @@ fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
                 [package]
                 name = "foo"
                 version = '1.0.0'
-                
+
                 [package.metadata]
                 dl = true
             "#,
@@ -1272,17 +1272,33 @@ fn wasixcc_pic_and_exceptions_for_dl_target() -> Result<()> {
     let output = p.cargo_wasix("build").assert().success();
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
 
-    // For -dl target, WASIXCC_PIC and WASIXCC_WASM_EXCEPTIONS should be set
+    // For -dl target, WASIXCC_PIC should be set
     assert!(
         stderr.contains("WASIXCC_PIC is set to: 1"),
         "Expected WASIXCC_PIC=1 for -dl target, stderr:\n{}",
         stderr
     );
-    assert!(
-        stderr.contains("WASIXCC_WASM_EXCEPTIONS is set to: 1"),
-        "Expected WASIXCC_WASM_EXCEPTIONS=1 for -dl target, stderr:\n{}",
-        stderr
-    );
+    // The Rust toolchain builds in the legacy EH configuration, so wasixcc
+    // must too (its own default is exnref).
+    if which::which("wasixcc").is_ok() {
+        assert!(
+            stderr.contains("WASIXCC_WASM_EXCEPTIONS is set to: legacy"),
+            "Expected WASIXCC_WASM_EXCEPTIONS=legacy, stderr:\n{}",
+            stderr
+        );
+
+        // Even a value from the environment is overridden: mismatched EH
+        // configurations must not reach the build.
+        let mut cmd = p.cargo_wasix("build");
+        cmd.env("WASIXCC_WASM_EXCEPTIONS", "exnref");
+        let output = cmd.assert().success();
+        let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+        assert!(
+            stderr.contains("WASIXCC_WASM_EXCEPTIONS is set to: legacy"),
+            "Expected the exnref value from the environment to be overridden, stderr:\n{}",
+            stderr
+        );
+    }
 
     Ok(())
 }
