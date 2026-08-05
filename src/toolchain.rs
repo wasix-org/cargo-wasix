@@ -25,6 +25,9 @@ fn guess_host_target() -> Option<&'static str> {
     #[cfg(all(target_arch = "x86_64", target_os = "linux"))]
     return Some("x86_64-unknown-linux-gnu");
 
+    #[cfg(all(target_arch = "aarch64", target_os = "linux"))]
+    return Some("aarch64-unknown-linux-gnu");
+
     #[cfg(all(target_arch = "x86_64", target_os = "macos"))]
     return Some("x86_64-apple-darwin");
 
