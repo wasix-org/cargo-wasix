@@ -679,6 +679,8 @@ fn install_wasm_opt(path: &ToolPath, config: &Config) -> Result<()> {
 
     let url = if cfg!(target_os = "linux") && cfg!(target_arch = "x86_64") {
         binaryen_url("x86_64-linux")
+    } else if cfg!(target_os = "linux") && cfg!(target_arch = "aarch64") {
+        binaryen_url("aarch64-linux")
     } else if cfg!(target_os = "macos") && cfg!(target_arch = "x86_64") {
         binaryen_url("x86_64-macos")
     } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
