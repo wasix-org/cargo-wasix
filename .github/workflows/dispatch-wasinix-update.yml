@@ -1,0 +1,31 @@
+name: Dispatch Wasinix Update
+
+# A published cargo-wasix release means the wasinix pin can bump now instead
+# of waiting for wasinix's weekly update schedule.
+#
+# Requires the WASINIX_DISPATCH_TOKEN secret: a token with actions write
+# access on wasix-org/wasinix. The default GITHUB_TOKEN cannot dispatch
+# workflows in another repository.
+on:
+  release:
+    types: [published]
+  # Release publishes with the default GITHUB_TOKEN, whose events do not start
+  # workflows, so its successful run is the reliable trigger.
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    steps:
+      - name: Dispatch the wasinix update workflow
+        env:
+          GH_TOKEN: ${{ secrets.WASINIX_DISPATCH_TOKEN }}
+        run: gh workflow run update.yml --repo wasix-org/wasinix -f targets=cargo-wasix
