@@ -246,17 +246,6 @@ fn rmain(config: &mut Config) -> Result<()> {
     // SAFETY: not safe in multi-threaded environment
     unsafe { std::env::set_var("RUSTUP_TOOLCHAIN", &toolchain.name) };
 
-    // Set some flags for rustc (only if RUSTFLAGS is not already set)
-    if std::env::var("RUSTFLAGS").is_err() {
-        // SAFETY: not safe in multi-threaded environment
-        unsafe {
-            env::set_var(
-                "RUSTFLAGS",
-                "-C target-feature=+atomics,+simd128,+relaxed-simd,+extended-const,+wide-arithmetic",
-            );
-        }
-    }
-
     // Point the `cc` crate (and anything else honoring its conventions) at
     // the wasixcc toolchain when it's installed. The variables are scoped to
     // the target — `cc` checks `CC_<target>` before `TARGET_CC` and `CC` —
